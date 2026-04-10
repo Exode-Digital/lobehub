@@ -6,7 +6,7 @@ import {
   EyeOffIcon,
   Hash,
   LucideCheck,
-  Settings2Icon,
+  SlidersHorizontalIcon,
 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -114,7 +114,7 @@ export const useAgentActionsDropdownMenu = ({
       },
       { type: 'divider' as const },
       {
-        icon: <Icon icon={Settings2Icon} />,
+        icon: <Icon icon={SlidersHorizontalIcon} />,
         key: 'customizeSidebar',
         label: t('navPanel.customizeSidebar'),
         onClick: () => openCustomizeSidebarModal(),

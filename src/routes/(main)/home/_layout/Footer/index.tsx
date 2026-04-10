@@ -15,6 +15,7 @@ import {
   Rocket,
   Settings,
   Settings2,
+  SlidersHorizontalIcon,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -258,7 +259,7 @@ const Footer = memo(() => {
           {allSectionsHidden && (
             <ActionIcon
               aria-label={t('navPanel.customizeSidebar')}
-              icon={Settings2}
+              icon={SlidersHorizontalIcon}
               size={16}
               title={t('navPanel.customizeSidebar')}
               onClick={() => openCustomizeSidebarModal()}

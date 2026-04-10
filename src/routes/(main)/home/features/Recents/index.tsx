@@ -7,7 +7,7 @@ import {
   Hash,
   LucideCheck,
   MoreHorizontalIcon,
-  Settings2Icon,
+  SlidersHorizontalIcon,
 } from 'lucide-react';
 import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -108,7 +108,7 @@ const Recents = memo<RecentsProps>(({ itemKey }) => {
       },
       { type: 'divider' as const },
       {
-        icon: <Icon icon={Settings2Icon} />,
+        icon: <Icon icon={SlidersHorizontalIcon} />,
         key: 'customizeSidebar',
         label: t('navPanel.customizeSidebar'),
         onClick: () => openCustomizeSidebarModal(),
