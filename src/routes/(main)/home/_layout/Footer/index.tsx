@@ -26,6 +26,7 @@ import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import { useFeedbackModal } from '@/hooks/useFeedbackModal';
 import { useNavLayout } from '@/hooks/useNavLayout';
+import { openCustomizeSidebarModal } from '@/routes/(main)/home/_layout/Body/CustomizeSidebarModal';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { useUserStore } from '@/store/user';
@@ -50,10 +51,17 @@ const Footer = memo(() => {
   const [isChangelogModalOpen, setIsChangelogModalOpen] = useState(false);
   const [isProductHuntCardOpen, setIsProductHuntCardOpen] = useState(false);
 
-  const [isNotificationRead, updateSystemStatus] = useGlobalStore((s) => [
-    systemStatusSelectors.isNotificationRead(PRODUCT_HUNT_NOTIFICATION.slug)(s),
-    s.updateSystemStatus,
-  ]);
+  const [isNotificationRead, sidebarSectionOrder, hiddenSidebarSections, updateSystemStatus] =
+    useGlobalStore((s) => [
+      systemStatusSelectors.isNotificationRead(PRODUCT_HUNT_NOTIFICATION.slug)(s),
+      systemStatusSelectors.sidebarSectionOrder(s),
+      systemStatusSelectors.hiddenSidebarSections(s),
+      s.updateSystemStatus,
+    ]);
+
+  const allSectionsHidden =
+    sidebarSectionOrder.length > 0 &&
+    sidebarSectionOrder.every((k) => hiddenSidebarSections.includes(k));
 
   const isWithinTimeWindow = useMemo(() => {
     const now = new Date();
@@ -236,14 +244,25 @@ const Footer = memo(() => {
           <ThemeButton placement={'topCenter'} size={16} />
         </Flexbox>
       ) : (
-        <Flexbox horizontal align={'center'} gap={2} padding={8}>
-          <DropdownMenu items={helpMenuItems} placement="topLeft">
-            <ActionIcon aria-label={t('userPanel.help')} icon={CircleHelp} size={16} />
-          </DropdownMenu>
-          {isDevMode && !isSettingsPage && (
-            <Link to="/settings">
-              <ActionIcon aria-label={t('userPanel.setting')} icon={Settings} size={16} />
-            </Link>
+        <Flexbox horizontal align={'center'} justify={'space-between'} padding={8}>
+          <Flexbox horizontal align={'center'} gap={2}>
+            <DropdownMenu items={helpMenuItems} placement="topLeft">
+              <ActionIcon aria-label={t('userPanel.help')} icon={CircleHelp} size={16} />
+            </DropdownMenu>
+            {isDevMode && !isSettingsPage && (
+              <Link to="/settings">
+                <ActionIcon aria-label={t('userPanel.setting')} icon={Settings} size={16} />
+              </Link>
+            )}
+          </Flexbox>
+          {allSectionsHidden && (
+            <ActionIcon
+              aria-label={t('navPanel.customizeSidebar')}
+              icon={Settings2}
+              size={16}
+              title={t('navPanel.customizeSidebar')}
+              onClick={() => openCustomizeSidebarModal()}
+            />
           )}
         </Flexbox>
       )}

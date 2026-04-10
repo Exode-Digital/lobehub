@@ -1,12 +1,21 @@
 import { type MenuProps } from '@lobehub/ui';
 import { AccordionItem, ActionIcon, DropdownMenu, Flexbox, Icon, Text } from '@lobehub/ui';
-import { ArrowDownIcon, ArrowUpIcon, Hash, LucideCheck, MoreHorizontalIcon } from 'lucide-react';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  EyeOffIcon,
+  Hash,
+  LucideCheck,
+  MoreHorizontalIcon,
+  Settings2Icon,
+} from 'lucide-react';
 import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import SkeletonList from '@/features/NavPanel/components/SkeletonList';
 import { useInitRecents } from '@/hooks/useInitRecents';
+import { openCustomizeSidebarModal } from '@/routes/(main)/home/_layout/Body/CustomizeSidebarModal';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 import { useHomeStore } from '@/store/home';
@@ -27,26 +36,35 @@ const Recents = memo<RecentsProps>(({ itemKey }) => {
   const isLogin = useUserStore(authSelectors.isLogin);
   const { isRevalidating } = useInitRecents();
 
-  const [recentPageSize, sidebarSectionOrder, updateSystemStatus] = useGlobalStore((s) => [
-    systemStatusSelectors.recentPageSize(s),
-    systemStatusSelectors.sidebarSectionOrder(s),
-    s.updateSystemStatus,
-  ]);
+  const [recentPageSize, sidebarSectionOrder, hiddenSections, updateSystemStatus] = useGlobalStore(
+    (s) => [
+      systemStatusSelectors.recentPageSize(s),
+      systemStatusSelectors.sidebarSectionOrder(s),
+      systemStatusSelectors.hiddenSidebarSections(s),
+      s.updateSystemStatus,
+    ],
+  );
 
-  const sectionIndex = sidebarSectionOrder.indexOf('recents');
-  const isFirst = sectionIndex === 0;
-  const isLast = sectionIndex === sidebarSectionOrder.length - 1;
+  const visibleOrder = sidebarSectionOrder.filter((k) => !hiddenSections.includes(k));
+  const visibleIndex = visibleOrder.indexOf('recents');
+  const isFirst = visibleIndex === 0;
+  const isLast = visibleIndex === visibleOrder.length - 1;
 
   const moveSection = useCallback(
     (direction: 'up' | 'down') => {
       const newOrder = [...sidebarSectionOrder];
       const idx = newOrder.indexOf('recents');
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= newOrder.length) return;
       [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
       updateSystemStatus({ sidebarSectionOrder: newOrder });
     },
     [sidebarSectionOrder, updateSystemStatus],
   );
+
+  const hideSection = useCallback(() => {
+    updateSystemStatus({ hiddenSidebarSections: [...hiddenSections, 'recents'] });
+  }, [hiddenSections, updateSystemStatus]);
 
   const dropdownMenu = useMemo(() => {
     const pageSizeOptions = [5, 10, 15, 20];
@@ -60,6 +78,13 @@ const Recents = memo<RecentsProps>(({ itemKey }) => {
     }));
 
     return [
+      {
+        children: pageSizeItems,
+        extra: recentPageSize,
+        icon: <Icon icon={Hash} />,
+        key: 'show',
+        label: t('navPanel.show'),
+      },
       {
         disabled: isFirst,
         icon: <Icon icon={ArrowUpIcon} />,
@@ -75,14 +100,30 @@ const Recents = memo<RecentsProps>(({ itemKey }) => {
         onClick: () => moveSection('down'),
       },
       {
-        children: pageSizeItems,
-        extra: recentPageSize,
-        icon: <Icon icon={Hash} />,
-        key: 'displayItems',
-        label: t('navPanel.displayItems'),
+        disabled: visibleOrder.length <= 1,
+        icon: <Icon icon={EyeOffIcon} />,
+        key: 'hideSection',
+        label: t('navPanel.hideSection'),
+        onClick: hideSection,
+      },
+      { type: 'divider' as const },
+      {
+        icon: <Icon icon={Settings2Icon} />,
+        key: 'customizeSidebar',
+        label: t('navPanel.customizeSidebar'),
+        onClick: () => openCustomizeSidebarModal(),
       },
     ] as MenuProps['items'];
-  }, [recentPageSize, updateSystemStatus, t, isFirst, isLast, moveSection]);
+  }, [
+    recentPageSize,
+    updateSystemStatus,
+    t,
+    isFirst,
+    isLast,
+    moveSection,
+    hideSection,
+    visibleOrder.length,
+  ]);
 
   if (!isLogin) return null;
   if (isInit && (!recents || recents.length === 0)) return null;

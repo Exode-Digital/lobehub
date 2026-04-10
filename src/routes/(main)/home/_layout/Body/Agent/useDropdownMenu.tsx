@@ -1,9 +1,17 @@
 import { type MenuProps } from '@lobehub/ui';
 import { Icon } from '@lobehub/ui';
-import { ArrowDownIcon, ArrowUpIcon, Hash, LucideCheck } from 'lucide-react';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  EyeOffIcon,
+  Hash,
+  LucideCheck,
+  Settings2Icon,
+} from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { openCustomizeSidebarModal } from '@/routes/(main)/home/_layout/Body/CustomizeSidebarModal';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 
@@ -18,26 +26,35 @@ export const useAgentActionsDropdownMenu = ({
 }: AgentActionsDropdownMenuProps): MenuProps['items'] => {
   const { t } = useTranslation('common');
 
-  const [agentPageSize, sidebarSectionOrder, updateSystemStatus] = useGlobalStore((s) => [
-    systemStatusSelectors.agentPageSize(s),
-    systemStatusSelectors.sidebarSectionOrder(s),
-    s.updateSystemStatus,
-  ]);
+  const [agentPageSize, sidebarSectionOrder, hiddenSections, updateSystemStatus] = useGlobalStore(
+    (s) => [
+      systemStatusSelectors.agentPageSize(s),
+      systemStatusSelectors.sidebarSectionOrder(s),
+      systemStatusSelectors.hiddenSidebarSections(s),
+      s.updateSystemStatus,
+    ],
+  );
 
-  const sectionIndex = sidebarSectionOrder.indexOf('agent');
-  const isFirst = sectionIndex === 0;
-  const isLast = sectionIndex === sidebarSectionOrder.length - 1;
+  const visibleOrder = sidebarSectionOrder.filter((k) => !hiddenSections.includes(k));
+  const visibleIndex = visibleOrder.indexOf('agent');
+  const isFirst = visibleIndex === 0;
+  const isLast = visibleIndex === visibleOrder.length - 1;
 
   const moveSection = useCallback(
     (direction: 'up' | 'down') => {
       const newOrder = [...sidebarSectionOrder];
       const idx = newOrder.indexOf('agent');
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= newOrder.length) return;
       [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
       updateSystemStatus({ sidebarSectionOrder: newOrder });
     },
     [sidebarSectionOrder, updateSystemStatus],
   );
+
+  const hideSection = useCallback(() => {
+    updateSystemStatus({ hiddenSidebarSections: [...hiddenSections, 'agent'] });
+  }, [hiddenSections, updateSystemStatus]);
 
   // Create menu items
   const {
@@ -68,6 +85,13 @@ export const useAgentActionsDropdownMenu = ({
       createGroupChatItem,
       { type: 'divider' as const },
       {
+        children: pageSizeItems,
+        extra: agentPageSize,
+        icon: <Icon icon={Hash} />,
+        key: 'show',
+        label: t('navPanel.show'),
+      },
+      {
         disabled: isFirst,
         icon: <Icon icon={ArrowUpIcon} />,
         key: 'moveUp',
@@ -82,11 +106,18 @@ export const useAgentActionsDropdownMenu = ({
         onClick: () => moveSection('down'),
       },
       {
-        children: pageSizeItems,
-        extra: agentPageSize,
-        icon: <Icon icon={Hash} />,
-        key: 'displayItems',
-        label: t('navPanel.displayItems'),
+        disabled: visibleOrder.length <= 1,
+        icon: <Icon icon={EyeOffIcon} />,
+        key: 'hideSection',
+        label: t('navPanel.hideSection'),
+        onClick: hideSection,
+      },
+      { type: 'divider' as const },
+      {
+        icon: <Icon icon={Settings2Icon} />,
+        key: 'customizeSidebar',
+        label: t('navPanel.customizeSidebar'),
+        onClick: () => openCustomizeSidebarModal(),
       },
       { type: 'divider' as const },
       createSessionGroupItem,
@@ -103,6 +134,8 @@ export const useAgentActionsDropdownMenu = ({
     isFirst,
     isLast,
     moveSection,
+    hideSection,
+    visibleOrder.length,
     t,
   ]);
 };

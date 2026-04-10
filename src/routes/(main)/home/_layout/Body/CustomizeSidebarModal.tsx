@@ -1,0 +1,103 @@
+'use client';
+
+import { type ModalInstance } from '@lobehub/ui';
+import { ActionIcon, Block, createModal, Flexbox, Icon, Text } from '@lobehub/ui';
+import { Divider } from 'antd';
+import { t } from 'i18next';
+import { Eye, EyeOff } from 'lucide-react';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { getRouteById } from '@/config/routes';
+import { useGlobalStore } from '@/store/global';
+import { systemStatusSelectors } from '@/store/global/selectors';
+
+// Accordion sections (Recents, Agents)
+const SECTION_ITEMS: { icon?: any; key: string; labelKey: string }[] = [
+  { key: 'recents', labelKey: 'recents' },
+  { key: 'agent', labelKey: 'navPanel.agent' },
+];
+
+// Bottom menu items (Community, Resources)
+const BOTTOM_ITEMS: { key: string; labelKey: string; routeId: string }[] = [
+  { key: 'community', labelKey: 'tab.community', routeId: 'community' },
+  { key: 'resource', labelKey: 'tab.resource', routeId: 'resource' },
+];
+
+const SectionRow = memo<{
+  icon?: any;
+  isHidden: boolean;
+  label: string;
+  onToggle: () => void;
+}>(({ label, icon, isHidden, onToggle }) => (
+  <Block style={{ opacity: isHidden ? 0.5 : 1 }} variant={isHidden ? 'filled' : 'borderless'}>
+    <Flexbox horizontal align={'center'} height={40} justify={'space-between'} paddingInline={8}>
+      <Flexbox horizontal align={'center'} gap={8}>
+        {icon && <Icon icon={icon} size={18} />}
+        <Text>{label}</Text>
+      </Flexbox>
+      <ActionIcon icon={isHidden ? EyeOff : Eye} size={'small'} onClick={onToggle} />
+    </Flexbox>
+  </Block>
+));
+
+const CustomizeSidebarContent = memo(() => {
+  const { t } = useTranslation('common');
+
+  const [sidebarSectionOrder, hiddenSections, updateSystemStatus] = useGlobalStore((s) => [
+    systemStatusSelectors.sidebarSectionOrder(s),
+    systemStatusSelectors.hiddenSidebarSections(s),
+    s.updateSystemStatus,
+  ]);
+
+  const toggleSection = (sectionKey: string) => {
+    const isHidden = hiddenSections.includes(sectionKey);
+    const newHidden = isHidden
+      ? hiddenSections.filter((k) => k !== sectionKey)
+      : [...hiddenSections, sectionKey];
+    updateSystemStatus({ hiddenSidebarSections: newHidden });
+  };
+
+  return (
+    <Flexbox gap={2}>
+      {sidebarSectionOrder.map((key) => {
+        const item = SECTION_ITEMS.find((i) => i.key === key);
+        if (!item) return null;
+
+        return (
+          <SectionRow
+            isHidden={hiddenSections.includes(key)}
+            key={key}
+            label={t(item.labelKey as any)}
+            onToggle={() => toggleSection(key)}
+          />
+        );
+      })}
+      <Divider style={{ margin: '8px 0' }} />
+      {BOTTOM_ITEMS.map((item) => {
+        const route = getRouteById(item.routeId);
+        return (
+          <SectionRow
+            icon={route?.icon}
+            isHidden={hiddenSections.includes(item.key)}
+            key={item.key}
+            label={t(item.labelKey as any)}
+            onToggle={() => toggleSection(item.key)}
+          />
+        );
+      })}
+    </Flexbox>
+  );
+});
+
+CustomizeSidebarContent.displayName = 'CustomizeSidebarContent';
+
+export const openCustomizeSidebarModal = (): ModalInstance =>
+  createModal({
+    centered: true,
+    children: <CustomizeSidebarContent />,
+    destroyOnHidden: true,
+    footer: null,
+    title: t('navPanel.customizeSidebar', { ns: 'common' }),
+    width: 360,
+  });

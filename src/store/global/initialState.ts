@@ -110,6 +110,10 @@ export interface SystemStatus {
    * Group Agent Builder panel width
    */
   groupAgentBuilderPanelWidth?: number;
+  /**
+   * Hidden sidebar sections
+   */
+  hiddenSidebarSections?: string[];
   hidePWAInstaller?: boolean;
   hideThreadLimitAlert?: boolean;
   hideTopicSharePrivacyWarning?: boolean;

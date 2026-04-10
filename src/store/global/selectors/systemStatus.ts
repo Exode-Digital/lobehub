@@ -18,6 +18,7 @@ const recentPageSize = (s: GlobalState): number => s.status.recentPageSize || 10
 
 const pagePageSize = (s: GlobalState): number => s.status.pagePageSize || 20;
 
+const hiddenSidebarSections = (s: GlobalState): string[] => s.status.hiddenSidebarSections || [];
 const sidebarSectionOrder = (s: GlobalState): string[] =>
   s.status.sidebarSectionOrder || ['recents', 'agent'];
 const showSystemRole = (s: GlobalState) => s.status.showSystemRole;
@@ -88,6 +89,7 @@ export const systemStatusSelectors = {
   filePanelWidth,
   getAgentSystemRoleExpanded,
   groupAgentBuilderPanelWidth,
+  hiddenSidebarSections,
   hidePWAInstaller,
   imagePanelWidth,
   imageTopicViewMode,

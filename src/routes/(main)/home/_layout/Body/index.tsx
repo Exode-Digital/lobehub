@@ -23,10 +23,15 @@ const sectionComponents: Record<string, (key: string) => ReactElement> = {
 
 const Body = memo(() => {
   const sidebarSectionOrder = useGlobalStore(systemStatusSelectors.sidebarSectionOrder);
+  const hiddenSections = useGlobalStore(systemStatusSelectors.hiddenSidebarSections);
 
   const sections = useMemo(
-    () => sidebarSectionOrder.map((key) => sectionComponents[key]?.(key)).filter(Boolean),
-    [sidebarSectionOrder],
+    () =>
+      sidebarSectionOrder
+        .filter((key) => !hiddenSections.includes(key))
+        .map((key) => sectionComponents[key]?.(key))
+        .filter(Boolean),
+    [sidebarSectionOrder, hiddenSections],
   );
 
   return (
