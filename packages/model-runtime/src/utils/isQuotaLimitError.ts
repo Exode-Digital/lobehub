@@ -5,6 +5,8 @@ const QUOTA_LIMIT_PATTERNS = [
   'rate_limit_exceeded', // OpenAI (code in message)
   'quota exceeded', // generic
   'too many requests', // generic
+  'too many tokens', // Moonshot / generic (e.g. "Too many tokens per day")
+  'please wait before trying again', // Moonshot
 ];
 
 export const isQuotaLimitError = (message?: string): boolean => {

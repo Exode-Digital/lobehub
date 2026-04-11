@@ -40,6 +40,7 @@ import { getModelPropertyWithFallback } from '../../utils/getFallbackModelProper
 import { getModelPricing } from '../../utils/getModelPricing';
 import { handleOpenAIError } from '../../utils/handleOpenAIError';
 import { isExceededContextWindowError } from '../../utils/isExceededContextWindowError';
+import { isInsufficientQuotaError } from '../../utils/isInsufficientQuotaError';
 import { isQuotaLimitError } from '../../utils/isQuotaLimitError';
 import { postProcessModelList } from '../../utils/postProcessModelList';
 import { StreamingResponse } from '../../utils/response';
@@ -965,19 +966,6 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
 
       log('error code: %s, message: %s', errorResult.code, errorResult.message);
 
-      // Check for "Insufficient Balance" in error message
-      const errorMessage = errorResult.error?.message || errorResult.message;
-      if (errorMessage?.includes('Insufficient Balance')) {
-        log('insufficient balance error detected in message');
-        return AgentRuntimeError.chat({
-          endpoint: desensitizedEndpoint,
-          error: errorResult,
-          errorType: AgentRuntimeErrorType.InsufficientQuota,
-          message,
-          provider: this.id,
-        });
-      }
-
       switch (errorResult.code) {
         case 'insufficient_quota': {
           log('insufficient quota error');
@@ -1016,6 +1004,18 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
       }
 
       const errorMsg = errorResult.error?.message || errorResult.message;
+
+      if (isInsufficientQuotaError(errorMsg)) {
+        log('insufficient quota error detected from message');
+        return AgentRuntimeError.chat({
+          endpoint: desensitizedEndpoint,
+          error: errorResult,
+          errorType: AgentRuntimeErrorType.InsufficientQuota,
+          message,
+          provider: this.id,
+        });
+      }
+
       if (isExceededContextWindowError(errorMsg)) {
         log('context length exceeded detected from message');
         return AgentRuntimeError.chat({
