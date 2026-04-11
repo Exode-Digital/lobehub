@@ -36,10 +36,10 @@ describe('isInsufficientQuotaError', () => {
     expect(isInsufficientQuotaError('Billing hard limit has been reached')).toBe(true);
   });
 
-  it('should detect OpenAI "account deactivated" errors', () => {
+  it('should NOT detect account deactivation as quota error', () => {
     expect(
       isInsufficientQuotaError('Your account has been deactivated, please contact support'),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('should detect "exceeded your current quota" errors', () => {

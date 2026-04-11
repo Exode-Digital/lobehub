@@ -4,7 +4,6 @@ const INSUFFICIENT_QUOTA_PATTERNS = [
   'account is suspended due to insufficient balance', // Moonshot
   'balance is not enough', // generic
   'billing hard limit has been reached', // OpenAI
-  'account has been deactivated', // OpenAI
   'exceeded your current quota', // OpenAI
 ];
 
