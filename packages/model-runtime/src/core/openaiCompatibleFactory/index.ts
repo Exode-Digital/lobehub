@@ -39,6 +39,7 @@ import { desensitizeUrl } from '../../utils/desensitizeUrl';
 import { getModelPropertyWithFallback } from '../../utils/getFallbackModelProperty';
 import { getModelPricing } from '../../utils/getModelPricing';
 import { handleOpenAIError } from '../../utils/handleOpenAIError';
+import { isAccountDeactivatedError } from '../../utils/isAccountDeactivatedError';
 import { isExceededContextWindowError } from '../../utils/isExceededContextWindowError';
 import { isInsufficientQuotaError } from '../../utils/isInsufficientQuotaError';
 import { isQuotaLimitError } from '../../utils/isQuotaLimitError';
@@ -1004,6 +1005,17 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
       }
 
       const errorMsg = errorResult.error?.message || errorResult.message;
+
+      if (isAccountDeactivatedError(errorMsg)) {
+        log('account deactivated error detected from message');
+        return AgentRuntimeError.chat({
+          endpoint: desensitizedEndpoint,
+          error: errorResult,
+          errorType: AgentRuntimeErrorType.AccountDeactivated,
+          message,
+          provider: this.id,
+        });
+      }
 
       if (isInsufficientQuotaError(errorMsg)) {
         log('insufficient quota error detected from message');

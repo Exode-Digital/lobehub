@@ -19,6 +19,7 @@ import { AgentRuntimeError } from '../../utils/createError';
 import { debugStream } from '../../utils/debugStream';
 import { desensitizeUrl } from '../../utils/desensitizeUrl';
 import { getModelPricing } from '../../utils/getModelPricing';
+import { isAccountDeactivatedError } from '../../utils/isAccountDeactivatedError';
 import { isExceededContextWindowError } from '../../utils/isExceededContextWindowError';
 import { isQuotaLimitError } from '../../utils/isQuotaLimitError';
 import { MODEL_LIST_CONFIGS, processModelList } from '../../utils/modelParse';
@@ -294,6 +295,16 @@ export const handleDefaultAnthropicError = <T extends Record<string, any> = any>
   const { errorResult, message } = handleAnthropicError(error);
 
   const errorMsg = errorResult.message || errorResult.error?.message;
+
+  if (isAccountDeactivatedError(errorMsg)) {
+    return {
+      endpoint: desensitizedEndpoint,
+      error: errorResult,
+      errorType: AgentRuntimeErrorType.AccountDeactivated,
+      message,
+    };
+  }
+
   if (isExceededContextWindowError(errorMsg)) {
     return {
       endpoint: desensitizedEndpoint,
@@ -682,6 +693,17 @@ export const createAnthropicCompatibleRuntime = <T extends Record<string, any> =
       const { errorResult, message } = handleAnthropicError(error);
 
       const errorMsg = errorResult.message || errorResult.error?.message;
+
+      if (isAccountDeactivatedError(errorMsg)) {
+        return AgentRuntimeError.chat({
+          endpoint: desensitizedEndpoint,
+          error: errorResult,
+          errorType: AgentRuntimeErrorType.AccountDeactivated,
+          message,
+          provider: this.id,
+        });
+      }
+
       if (isExceededContextWindowError(errorMsg)) {
         return AgentRuntimeError.chat({
           endpoint: desensitizedEndpoint,
