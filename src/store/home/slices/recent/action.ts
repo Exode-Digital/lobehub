@@ -41,11 +41,6 @@ export class RecentActionImpl {
     this.#set({ recents }, false, n('updateRecentTitle'));
   };
 
-  removeRecent = (id: string): void => {
-    const recents = this.#get().recents.filter((item) => item.id !== id);
-    this.#set({ recents }, false, n('removeRecent'));
-  };
-
   refreshRecents = async (): Promise<void> => {
     await Promise.all([
       mutate((key: unknown) => Array.isArray(key) && key[0] === FETCH_RECENTS_KEY),
