@@ -92,6 +92,16 @@ vi.mock('../../../store', () => ({
   useConversationStore: (selector: (state: unknown) => unknown) => selector({}),
 }));
 
+vi.mock('@/store/chat', () => ({
+  useChatStore: (selector: (state: unknown) => unknown) => selector({ operations: {} }),
+}));
+
+vi.mock('@/store/chat/slices/operation/selectors', () => ({
+  operationSelectors: {
+    getOperationsByMessage: () => () => [],
+  },
+}));
+
 vi.mock('./WorkflowExpandedList', () => ({
   default: () => <div>workflow-expanded-list</div>,
 }));
