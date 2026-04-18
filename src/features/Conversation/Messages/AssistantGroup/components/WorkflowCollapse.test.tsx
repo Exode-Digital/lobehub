@@ -96,22 +96,27 @@ vi.mock('./WorkflowExpandedList', () => ({
   default: () => <div>workflow-expanded-list</div>,
 }));
 
-const makeBlocks = (toolOverrides: Record<string, unknown> = {}): AssistantContentBlock[] => [
+const makeBlocks = (
+  toolOverrides: Record<string, unknown> = {},
+  toolCount: number = 2,
+): AssistantContentBlock[] => [
   {
     content: '',
     id: 'block-1',
-    tools: [
-      {
-        apiName: 'search',
-        arguments: '{"query":"workflow"}',
-        id: 'tool-1',
-        identifier: 'search',
-        type: 'builtin',
-        ...toolOverrides,
-      } as any,
-    ],
+    tools: Array.from({ length: toolCount }, (_, i) => ({
+      apiName: i === 0 ? 'search' : 'calculate',
+      arguments: '{"query":"workflow"}',
+      id: `tool-${i + 1}`,
+      identifier: i === 0 ? 'search' : 'calculate',
+      type: 'builtin',
+      ...toolOverrides,
+    })) as any[],
   } as AssistantContentBlock,
 ];
+
+const makeSingleToolBlocks = (
+  toolOverrides: Record<string, unknown> = {},
+): AssistantContentBlock[] => makeBlocks(toolOverrides, 1);
 
 const getExpandedKeys = () =>
   screen.getByTestId('workflow-accordion').getAttribute('data-expanded-keys');
@@ -121,6 +126,19 @@ describe('WorkflowCollapse', () => {
     cleanup();
     mockIsGenerating = true;
     vi.useRealTimers();
+  });
+
+  it('renders directly without accordion when only one tool', () => {
+    render(<WorkflowCollapse assistantMessageId="msg-1" blocks={makeSingleToolBlocks()} />);
+
+    expect(screen.queryByTestId('workflow-accordion')).not.toBeInTheDocument();
+    expect(screen.getByText('workflow-expanded-list')).toBeInTheDocument();
+  });
+
+  it('renders with accordion when multiple tools', () => {
+    render(<WorkflowCollapse assistantMessageId="msg-1" blocks={makeBlocks()} />);
+
+    expect(screen.getByTestId('workflow-accordion')).toBeInTheDocument();
   });
 
   it('defaults to expanded while streaming', () => {

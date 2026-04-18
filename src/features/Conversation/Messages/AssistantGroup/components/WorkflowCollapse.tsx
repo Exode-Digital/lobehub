@@ -3,7 +3,7 @@ import { Accordion, AccordionItem, Block, Flexbox, Icon, Text } from '@lobehub/u
 import { cssVar } from 'antd-style';
 import { AlertTriangle, Check, HandIcon, Maximize2, Minimize2, X } from 'lucide-react';
 import { AnimatePresence, m as motion } from 'motion/react';
-import { type Key, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { type Key, memo, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
@@ -32,6 +32,30 @@ import {
 } from '../toolDisplayNames';
 import type { RenderableAssistantContentBlock } from './types';
 import WorkflowExpandedList from './WorkflowExpandedList';
+
+interface WorkflowContentProps {
+  assistantId: string;
+  blocks: RenderableAssistantContentBlock[];
+  constrained: boolean;
+  disableEditing?: boolean;
+  onScroll?: () => void;
+  scrollRef?: RefObject<HTMLDivElement | null>;
+}
+
+const WorkflowContent = memo<WorkflowContentProps>(
+  ({ assistantId, blocks, constrained, disableEditing, onScroll, scrollRef }) => (
+    <WorkflowExpandedList
+      assistantId={assistantId}
+      blocks={blocks}
+      constrained={constrained}
+      disableEditing={disableEditing}
+      scrollRef={scrollRef}
+      onScroll={onScroll}
+    />
+  ),
+);
+
+WorkflowContent.displayName = 'WorkflowContent';
 
 const WORKFLOW_EXPAND_TOGGLE_ICON_SIZE = 12;
 const WORKFLOW_EXPAND_TOGGLE_TRANSITION = {
@@ -460,6 +484,19 @@ const WorkflowCollapse = memo<WorkflowCollapseProps>(
       </Flexbox>
     );
 
+    const isSingleTool = allTools.length === 1;
+
+    if (isSingleTool) {
+      return (
+        <WorkflowContent
+          assistantId={assistantMessageId}
+          blocks={blocks}
+          constrained={false}
+          disableEditing={disableEditing}
+        />
+      );
+    }
+
     return (
       <Accordion
         expandedKeys={isExpanded ? ['workflow'] : []}
@@ -467,7 +504,7 @@ const WorkflowCollapse = memo<WorkflowCollapseProps>(
         onExpandedChange={handleExpandedChange}
       >
         <AccordionItem itemKey="workflow" paddingBlock={4} paddingInline={4} title={title}>
-          <WorkflowExpandedList
+          <WorkflowContent
             assistantId={assistantMessageId}
             blocks={blocks}
             constrained={constrained}
