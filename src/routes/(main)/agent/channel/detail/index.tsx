@@ -72,14 +72,21 @@ const PlatformDetail = memo<PlatformDetailProps>(
     const { message: msg, modal } = App.useApp();
     const [form] = Form.useForm<ChannelFormValues>();
 
-    const [createBotProvider, deleteBotProvider, updateBotProvider, connectBot, testConnection] =
-      useAgentStore((s) => [
-        s.createBotProvider,
-        s.deleteBotProvider,
-        s.updateBotProvider,
-        s.connectBot,
-        s.testConnection,
-      ]);
+    const [
+      createBotProvider,
+      deleteBotProvider,
+      updateBotProvider,
+      connectBot,
+      testConnection,
+      refreshBotRuntimeStatus,
+    ] = useAgentStore((s) => [
+      s.createBotProvider,
+      s.deleteBotProvider,
+      s.updateBotProvider,
+      s.connectBot,
+      s.testConnection,
+      s.refreshBotRuntimeStatus,
+    ]);
 
     const [saving, setSaving] = useState(false);
     const [connecting, setConnecting] = useState(false);
@@ -193,7 +200,8 @@ const PlatformDetail = memo<PlatformDetailProps>(
       if (!currentConfig?.enabled) return;
       setRefreshingStatus(true);
       try {
-        const snapshot = await agentBotProviderService.refreshRuntimeStatus({
+        const snapshot = await refreshBotRuntimeStatus({
+          agentId,
           applicationId: currentConfig.applicationId,
           platform: currentConfig.platform,
         });
@@ -209,7 +217,7 @@ const PlatformDetail = memo<PlatformDetailProps>(
       } finally {
         setRefreshingStatus(false);
       }
-    }, [currentConfig, mapRuntimeStatusToResult, msg]);
+    }, [agentId, currentConfig, mapRuntimeStatusToResult, msg, refreshBotRuntimeStatus]);
 
     // Reset form and status when switching platforms
     useEffect(() => {

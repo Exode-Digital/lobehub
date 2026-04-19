@@ -285,6 +285,49 @@ export class GatewayService {
   }
 
   /**
+   * Pull live status from the gateway for every enabled provider under an
+   * agent and persist each result to Redis. No-op when the gateway is
+   * disabled; webhook-mode providers are skipped (they have no persistent
+   * gateway connection to query).
+   */
+  async refreshBotRuntimeStatusesByAgent(agentId: string, userId: string): Promise<void> {
+    if (!this.useMessageGateway) return;
+
+    const serverDB = await getServerDB();
+    const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
+    const model = new AgentBotProviderModel(serverDB, userId, gateKeeper);
+    const providers = await model.findByAgentId(agentId);
+    const client = getMessageGatewayClient();
+
+    await Promise.all(
+      providers.map(async (provider) => {
+        if (!provider.enabled) return;
+
+        const definition = platformRegistry.getPlatform(provider.platform);
+        const connectionMode = getEffectiveConnectionMode(definition, provider.settings);
+        if (connectionMode === 'webhook') return;
+
+        try {
+          const { state } = await client.getStatus(provider.id);
+          await updateBotRuntimeStatus({
+            applicationId: provider.applicationId,
+            errorMessage: state.error,
+            platform: provider.platform,
+            status: mapGatewayStatusToRuntimeStatus(state.status),
+          });
+        } catch (err) {
+          log(
+            'Bulk refresh: gateway status failed %s:%s: %O',
+            provider.platform,
+            provider.applicationId,
+            err,
+          );
+        }
+      }),
+    );
+  }
+
+  /**
    * Pull the live connection status from the external message-gateway and
    * persist it to the local Redis snapshot. When the gateway is disabled or
    * the provider runs in webhook mode, returns the cached snapshot as-is.
