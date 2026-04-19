@@ -50,6 +50,16 @@ vi.mock('@/features/FloatingChatPanel', () => ({
   ),
 }));
 
+vi.mock('@/features/TopicCanvas', () => ({
+  default: ({ agentId, topicId }: { agentId?: string; topicId?: string | null }) => (
+    <div
+      data-agent-id={agentId ?? ''}
+      data-testid="topic-canvas"
+      data-topic-id={topicId ?? 'null'}
+    />
+  ),
+}));
+
 describe('Topic page route', () => {
   it('renders FloatingChatPanel with route topic context', () => {
     useParamsMock.mockReturnValue({ aid: 'agt_test', topicId: 'tpc_test' });
@@ -57,6 +67,8 @@ describe('Topic page route', () => {
     render(<TopicPage />);
 
     expect(screen.getByTestId('agent-page-container')).toBeInTheDocument();
+    expect(screen.getByTestId('topic-canvas')).toHaveAttribute('data-agent-id', 'agt_test');
+    expect(screen.getByTestId('topic-canvas')).toHaveAttribute('data-topic-id', 'tpc_test');
     expect(screen.getByTestId('floating-chat-panel')).toHaveAttribute('data-agent-id', 'agt_test');
     expect(screen.getByTestId('floating-chat-panel')).toHaveAttribute('data-open', 'true');
     expect(screen.getByTestId('floating-chat-panel')).toHaveAttribute(

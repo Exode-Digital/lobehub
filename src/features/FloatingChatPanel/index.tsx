@@ -40,9 +40,10 @@ const styles = createStaticStyles(({ css }) => ({
   body: css`
     overflow: hidden;
     display: flex;
-    flex: 1;
     flex-direction: column;
 
+    width: 100%;
+    height: 100%;
     min-height: 0;
   `,
 }));
@@ -140,7 +141,7 @@ const FloatingChatPanel = memo<FloatingChatPanelProps>(
       dismissible: false,
 
       maxHeight: 520,
-      minHeight: 120,
+      minHeight: 320,
       mode: 'inline',
       onOpenChange: setOpen,
       open,
@@ -153,14 +154,6 @@ const FloatingChatPanel = memo<FloatingChatPanelProps>(
 
     return (
       <FloatingSheet {...sheetProps}>
-        {(title || headerActions) && (
-          <div className={styles.header}>
-            <div className={styles.title} data-testid={'sheet-title'}>
-              {title}
-            </div>
-            <div data-testid={'sheet-actions'}>{headerActions}</div>
-          </div>
-        )}
         <div className={styles.body}>
           <ConversationProvider
             actionsBar={resolvedActionsBar}

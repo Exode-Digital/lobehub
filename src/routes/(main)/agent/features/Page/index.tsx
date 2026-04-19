@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { useParams } from 'react-router-dom';
 
 import FloatingChatPanel from '@/features/FloatingChatPanel';
+import TopicCanvas from '@/features/TopicCanvas';
 
 const MAX_PANEL_WIDTH = 1024;
 
@@ -23,10 +24,13 @@ const TopicPage = memo(() => {
     >
       <Flexbox
         flex={1}
-        justify={'flex-end'}
-        style={{ maxWidth: MAX_PANEL_WIDTH, minHeight: 0 }}
+        gap={12}
+        style={{ maxWidth: MAX_PANEL_WIDTH, minHeight: 0, paddingBlockEnd: 16 }}
         width={'100%'}
       >
+        <Flexbox flex={1} style={{ minHeight: 0 }} width={'100%'}>
+          <TopicCanvas agentId={params.aid} topicId={params.topicId} />
+        </Flexbox>
         <FloatingChatPanel
           agentId={params.aid}
           maxHeight={0.92}
