@@ -92,6 +92,7 @@ const PlatformDetail = memo<PlatformDetailProps>(
     const [observedStatus, setObservedStatus] = useState<BotRuntimeStatus | undefined>(
       runtimeStatus,
     );
+    const [refreshingStatus, setRefreshingStatus] = useState(false);
     const connectPollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const stopConnectPolling = useCallback(() => {
@@ -187,6 +188,28 @@ const PlatformDetail = memo<PlatformDetailProps>(
       },
       [agentId, connectBot, platformDef.id, syncRuntimeStatus, t],
     );
+
+    const handleRefreshStatus = useCallback(async () => {
+      if (!currentConfig?.enabled) return;
+      setRefreshingStatus(true);
+      try {
+        const snapshot = await agentBotProviderService.refreshRuntimeStatus({
+          applicationId: currentConfig.applicationId,
+          platform: currentConfig.platform,
+        });
+        setObservedStatus(snapshot.status);
+        const nextResult = mapRuntimeStatusToResult(snapshot, { showConnected: true });
+        if (nextResult) {
+          setConnectResult(nextResult);
+        } else if (snapshot.status === BOT_RUNTIME_STATUSES.disconnected) {
+          setConnectResult(undefined);
+        }
+      } catch (e: any) {
+        msg.error(e?.message || String(e));
+      } finally {
+        setRefreshingStatus(false);
+      }
+    }, [currentConfig, mapRuntimeStatusToResult, msg]);
 
     // Reset form and status when switching platforms
     useEffect(() => {
@@ -424,8 +447,10 @@ const PlatformDetail = memo<PlatformDetailProps>(
           currentConfig={currentConfig}
           enabledValue={pendingEnabled}
           platformDef={platformDef}
+          refreshingStatus={refreshingStatus}
           runtimeStatus={observedStatus}
           toggleLoading={toggleLoading}
+          onRefreshStatus={handleRefreshStatus}
           onToggleEnable={handleToggleEnable}
         />
         <Body

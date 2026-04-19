@@ -18,6 +18,13 @@ class AgentBotProviderService {
     return lambdaClient.agentBotProvider.getRuntimeStatus.query(params);
   };
 
+  refreshRuntimeStatus = async (params: {
+    applicationId: string;
+    platform: string;
+  }): Promise<BotRuntimeStatusSnapshot> => {
+    return lambdaClient.agentBotProvider.refreshRuntimeStatus.mutate(params);
+  };
+
   create = async (params: {
     agentId: string;
     applicationId: string;

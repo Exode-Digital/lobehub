@@ -1,8 +1,8 @@
 'use client';
 
-import { Flexbox, Tag } from '@lobehub/ui';
+import { ActionIcon, Flexbox, Tag } from '@lobehub/ui';
 import { Button, Switch } from 'antd';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -15,8 +15,10 @@ import { getPlatformIcon } from '../const';
 interface HeaderProps {
   currentConfig?: { enabled: boolean };
   enabledValue?: boolean;
+  onRefreshStatus?: () => void;
   onToggleEnable: (enabled: boolean) => void;
   platformDef: SerializedPlatformDefinition;
+  refreshingStatus?: boolean;
   runtimeStatus?: BotRuntimeStatus;
   toggleLoading?: boolean;
 }
@@ -30,7 +32,16 @@ const STATUS_TAG_COLORS: Partial<Record<BotRuntimeStatus, string>> = {
 };
 
 const Header = memo<HeaderProps>(
-  ({ platformDef, currentConfig, enabledValue, onToggleEnable, runtimeStatus, toggleLoading }) => {
+  ({
+    platformDef,
+    currentConfig,
+    enabledValue,
+    onRefreshStatus,
+    onToggleEnable,
+    refreshingStatus,
+    runtimeStatus,
+    toggleLoading,
+  }) => {
     const { t } = useTranslation('agent');
     const PlatformIcon = getPlatformIcon(platformDef.name);
     const ColorIcon =
@@ -83,6 +94,15 @@ const Header = memo<HeaderProps>(
             <Tag color={statusColor} size={'small'}>
               {statusLabel}
             </Tag>
+          )}
+          {onRefreshStatus && currentConfig?.enabled && (
+            <ActionIcon
+              icon={RefreshCw}
+              loading={refreshingStatus}
+              size={'small'}
+              title={t('channel.refreshStatus')}
+              onClick={onRefreshStatus}
+            />
           )}
           {platformDef.documentation?.setupGuideUrl && (
             <a

@@ -154,6 +154,7 @@ export default {
   'channel.userId': 'Your Platform User ID',
   'channel.userIdHint':
     'Your user ID on this platform. The AI can use it to send you direct messages.',
+  'channel.refreshStatus': 'Refresh status',
   'channel.runtimeDisconnected': 'Bot disconnected',
   'channel.statusConnected': 'Connected',
   'channel.statusDisconnected': 'Disconnected',
