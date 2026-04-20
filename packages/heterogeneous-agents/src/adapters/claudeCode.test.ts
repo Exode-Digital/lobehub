@@ -269,7 +269,12 @@ describe('ClaudeCodeAdapter', () => {
   });
 
   describe('usage and model extraction', () => {
-    it('emits step_complete with turn_metadata when message has model and usage', () => {
+    // Under `--include-partial-messages` (our preset default), CC emits a
+    // stale `message_start.usage` snapshot (e.g. `output_tokens: 8`) that it
+    // echoes verbatim on every content-block `assistant` event. The
+    // authoritative per-turn total only arrives later as `message_delta`.
+    // So turn_metadata emission is wired to `message_delta`, not `assistant`.
+    it('does NOT emit turn_metadata on assistant events (usage there is stale)', () => {
       const adapter = new ClaudeCodeAdapter();
       adapter.adapt({ subtype: 'init', type: 'system' });
 
@@ -278,9 +283,36 @@ describe('ClaudeCodeAdapter', () => {
           id: 'msg_1',
           content: [{ text: 'hello', type: 'text' }],
           model: 'claude-sonnet-4-6',
-          usage: { input_tokens: 100, output_tokens: 50 },
+          usage: { input_tokens: 100, output_tokens: 1 }, // stale placeholder
         },
         type: 'assistant',
+      });
+
+      expect(
+        events.find((e) => e.type === 'step_complete' && e.data?.phase === 'turn_metadata'),
+      ).toBeUndefined();
+    });
+
+    it('emits turn_metadata on message_delta with authoritative usage', () => {
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      // stream_event:message_start primes the current message id + model
+      adapter.adapt({
+        event: {
+          message: { id: 'msg_1', model: 'claude-sonnet-4-6' },
+          type: 'message_start',
+        },
+        type: 'stream_event',
+      });
+
+      // message_delta carries the final per-turn usage
+      const events = adapter.adapt({
+        event: {
+          type: 'message_delta',
+          usage: { input_tokens: 100, output_tokens: 50 },
+        },
+        type: 'stream_event',
       });
 
       const meta = events.find(
@@ -288,19 +320,32 @@ describe('ClaudeCodeAdapter', () => {
       );
       expect(meta).toBeDefined();
       expect(meta!.data.model).toBe('claude-sonnet-4-6');
-      expect(meta!.data.usage.input_tokens).toBe(100);
-      expect(meta!.data.usage.output_tokens).toBe(50);
+      expect(meta!.data.provider).toBe('claude-code');
+      expect(meta!.data.usage).toEqual({
+        inputCacheMissTokens: 100,
+        inputCachedTokens: undefined,
+        inputWriteCacheTokens: undefined,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        totalTokens: 150,
+      });
     });
 
-    it('emits step_complete with cache token usage', () => {
+    it('normalizes cache creation and cache read from message_delta usage', () => {
       const adapter = new ClaudeCodeAdapter();
       adapter.adapt({ subtype: 'init', type: 'system' });
 
+      adapter.adapt({
+        event: {
+          message: { id: 'msg_1', model: 'claude-sonnet-4-6' },
+          type: 'message_start',
+        },
+        type: 'stream_event',
+      });
+
       const events = adapter.adapt({
-        message: {
-          id: 'msg_1',
-          content: [{ text: 'hi', type: 'text' }],
-          model: 'claude-sonnet-4-6',
+        event: {
+          type: 'message_delta',
           usage: {
             cache_creation_input_tokens: 200,
             cache_read_input_tokens: 300,
@@ -308,14 +353,54 @@ describe('ClaudeCodeAdapter', () => {
             output_tokens: 50,
           },
         },
-        type: 'assistant',
+        type: 'stream_event',
       });
 
       const meta = events.find(
         (e) => e.type === 'step_complete' && e.data?.phase === 'turn_metadata',
       );
-      expect(meta!.data.usage.cache_creation_input_tokens).toBe(200);
-      expect(meta!.data.usage.cache_read_input_tokens).toBe(300);
+      expect(meta!.data.usage).toEqual({
+        inputCacheMissTokens: 100,
+        inputCachedTokens: 300,
+        inputWriteCacheTokens: 200,
+        totalInputTokens: 600,
+        totalOutputTokens: 50,
+        totalTokens: 650,
+      });
+    });
+
+    it('uses model from the latest assistant event when message_start lacks one', () => {
+      // Non-partial edge case: no message_start carries model, but assistant
+      // events always do. The adapter should still attach the right model.
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      adapter.adapt({
+        event: { message: { id: 'msg_1' }, type: 'message_start' },
+        type: 'stream_event',
+      });
+      adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ text: 'hi', type: 'text' }],
+          model: 'claude-opus-4-7',
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+        type: 'assistant',
+      });
+
+      const events = adapter.adapt({
+        event: {
+          type: 'message_delta',
+          usage: { input_tokens: 10, output_tokens: 100 },
+        },
+        type: 'stream_event',
+      });
+
+      const meta = events.find(
+        (e) => e.type === 'step_complete' && e.data?.phase === 'turn_metadata',
+      );
+      expect(meta!.data.model).toBe('claude-opus-4-7');
     });
   });
 
@@ -429,6 +514,132 @@ describe('ClaudeCodeAdapter', () => {
 
       const toolStarts = events.filter((e) => e.type === 'tool_start');
       expect(toolStarts).toHaveLength(2);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Cumulative tools_calling (orphan tool regression)
+  //
+  // CC streams each tool_use content block in its OWN assistant event, even
+  // when multiple tools belong to the same LLM turn (same message.id). The
+  // in-memory handler dispatch updates assistant.tools via a REPLACING array
+  // merge — so if the adapter emitted only the newest tool on each chunk,
+  // earlier tools would vanish from the in-memory assistant.tools[] between
+  // tool_result refreshes and render as orphans. Adapter must emit the full
+  // cumulative list per message.id so the replacing merge preserves history.
+  // ──────────────────────────────────────────────────────────────
+
+  describe('cumulative tools_calling per message.id', () => {
+    it('includes prior tools in tools_calling when a new tool_use arrives on same message.id', () => {
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      // First tool_use block of msg_1
+      const e1 = adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't1', input: { path: '/a' }, name: 'Read', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+      const chunk1 = e1.find(
+        (e) => e.type === 'stream_chunk' && e.data.chunkType === 'tools_calling',
+      );
+      expect(chunk1!.data.toolsCalling.map((t: any) => t.id)).toEqual(['t1']);
+
+      // Second tool_use block on the SAME message.id — must carry both t1 + t2
+      const e2 = adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't2', input: { cmd: 'ls' }, name: 'Bash', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+      const chunk2 = e2.find(
+        (e) => e.type === 'stream_chunk' && e.data.chunkType === 'tools_calling',
+      );
+      expect(chunk2!.data.toolsCalling.map((t: any) => t.id)).toEqual(['t1', 't2']);
+    });
+
+    it('emits tool_start only for newly-seen tools, not for the cumulative prior ones', () => {
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't1', input: {}, name: 'Read', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      const e2 = adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't2', input: {}, name: 'Bash', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      const starts = e2.filter((e) => e.type === 'tool_start');
+      expect(starts).toHaveLength(1);
+      expect(starts[0].data.toolCalling.id).toBe('t2');
+    });
+
+    it('starts a fresh accumulator when message.id advances (new LLM turn)', () => {
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't1', input: {}, name: 'Read', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      const events = adapter.adapt({
+        message: {
+          id: 'msg_2',
+          content: [{ id: 't2', input: {}, name: 'Bash', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      const chunk = events.find(
+        (e) => e.type === 'stream_chunk' && e.data.chunkType === 'tools_calling',
+      );
+      // Different message.id — the new assistant's tools[] must NOT contain t1
+      expect(chunk!.data.toolsCalling.map((t: any) => t.id)).toEqual(['t2']);
+    });
+
+    it('dedupes when CC echoes a tool_use block with the same id', () => {
+      const adapter = new ClaudeCodeAdapter();
+      adapter.adapt({ subtype: 'init', type: 'system' });
+
+      adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't1', input: {}, name: 'Read', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      // Same tool_use id re-sent — cumulative list must not duplicate it,
+      // and tool_start must not fire again.
+      const e2 = adapter.adapt({
+        message: {
+          id: 'msg_1',
+          content: [{ id: 't1', input: {}, name: 'Read', type: 'tool_use' }],
+        },
+        type: 'assistant',
+      });
+
+      const chunk = e2.find(
+        (e) => e.type === 'stream_chunk' && e.data.chunkType === 'tools_calling',
+      );
+      expect(chunk!.data.toolsCalling.map((t: any) => t.id)).toEqual(['t1']);
+      expect(e2.filter((e) => e.type === 'tool_start')).toHaveLength(0);
     });
   });
 
