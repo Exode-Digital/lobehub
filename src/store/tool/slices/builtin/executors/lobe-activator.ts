@@ -43,15 +43,17 @@ const service: ActivatorRuntimeService = {
     // Only allow activation of tools that passed discovery filters
     // (discoverable, platform-available, not internal/hidden)
     const discoverable = new Set(
-      toolSelectors.availableToolsForDiscovery(s).map((t) => t.identifier),
+      toolSelectors.availableToolsForDiscovery(s).map((t) => t.identifier.toLowerCase()),
     );
-    const allowedIds = identifiers.filter((id) => discoverable.has(id));
+    const allowedIds = identifiers.filter((id) => discoverable.has(id.toLowerCase()));
 
     const results: ToolManifestInfo[] = [];
 
     for (const id of allowedIds) {
+      const idLower = id.toLowerCase();
+
       // Search builtin tools
-      const builtin = s.builtinTools.find((t) => t.identifier === id);
+      const builtin = s.builtinTools.find((t) => t.identifier.toLowerCase() === idLower);
       if (builtin) {
         results.push({
           apiDescriptions: builtin.manifest.api.map((a) => ({
@@ -67,7 +69,7 @@ const service: ActivatorRuntimeService = {
       }
 
       // Search installed plugins
-      const plugin = s.installedPlugins.find((p) => p.identifier === id);
+      const plugin = s.installedPlugins.find((p) => p.identifier.toLowerCase() === idLower);
       if (plugin?.manifest) {
         results.push({
           apiDescriptions: (plugin.manifest.api || []).map((a) => ({
@@ -84,7 +86,9 @@ const service: ActivatorRuntimeService = {
 
       // Search LobeHub Skill servers
       const lobehubSkillServer = s.lobehubSkillServers?.find(
-        (server) => server.identifier === id && server.status === LobehubSkillStatus.CONNECTED,
+        (server) =>
+          server.identifier.toLowerCase() === idLower &&
+          server.status === LobehubSkillStatus.CONNECTED,
       );
       if (lobehubSkillServer?.tools) {
         results.push({

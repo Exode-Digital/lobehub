@@ -45,8 +45,15 @@ export const activatorRuntime: ServerRuntimeRegistration = {
         // The caller is responsible for scoping this map to exclude hidden/internal tools.
         const results: ToolManifestInfo[] = [];
 
+        // Build a case-insensitive lookup map for tool manifests
+        const manifestMapLower: Record<string, string> = {};
+        for (const key of Object.keys(context.toolManifestMap)) {
+          manifestMapLower[key.toLowerCase()] = key;
+        }
+
         for (const id of identifiers) {
-          const manifest = context.toolManifestMap[id];
+          const actualKey = manifestMapLower[id.toLowerCase()];
+          const manifest = actualKey ? context.toolManifestMap[actualKey] : undefined;
           if (!manifest) continue;
 
           results.push({

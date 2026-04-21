@@ -96,6 +96,31 @@ describe('lobe-activator executor discovery allowlist', () => {
     expect(activatedIds).toHaveLength(0);
   });
 
+  it('should match identifiers case-insensitively', async () => {
+    const tool = makeBuiltinTool('lobe-web-browsing');
+
+    mockGetState.mockReturnValue({
+      builtinTools: [tool],
+      installedPlugins: [],
+    });
+
+    mockAvailableToolsForDiscovery.mockReturnValue([
+      { description: 'desc', identifier: 'lobe-web-browsing', name: 'lobe-web-browsing' },
+    ]);
+
+    const result = await activatorExecutor.invoke(
+      'activateTools',
+      { identifiers: ['Lobe-Web-Browsing'] },
+      { messageId: 'msg-1', operationId: 'op-1' },
+    );
+
+    expect(result.success).toBe(true);
+
+    const state = result.state as any;
+    const activatedIds = state.activatedTools?.map((t: any) => t.identifier) ?? [];
+    expect(activatedIds).toContain('lobe-web-browsing');
+  });
+
   it('should allow discoverable plugins', async () => {
     const plugin = makePlugin('community-plugin');
 

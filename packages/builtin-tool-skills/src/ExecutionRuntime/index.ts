@@ -177,8 +177,9 @@ export class SkillsExecutionRuntime {
     }
 
     try {
-      // Check builtin skills first
-      const builtinSkill = this.builtinSkills.find((s) => s.name === id);
+      // Check builtin skills first (case-insensitive)
+      const idLower = id.toLowerCase();
+      const builtinSkill = this.builtinSkills.find((s) => s.name.toLowerCase() === idLower);
       if (builtinSkill?.resources) {
         const meta = builtinSkill.resources[path];
         if (meta?.content !== undefined) {
@@ -231,8 +232,9 @@ export class SkillsExecutionRuntime {
   async activateSkill(args: ActivateSkillParams): Promise<BuiltinServerRuntimeOutput> {
     const { name } = args;
 
-    // Check builtin skills first — no DB query needed
-    const builtinSkill = this.builtinSkills.find((s) => s.name === name);
+    // Check builtin skills first — no DB query needed (case-insensitive)
+    const nameLower = name.toLowerCase();
+    const builtinSkill = this.builtinSkills.find((s) => s.name.toLowerCase() === nameLower);
     if (builtinSkill) {
       let content = builtinSkill.content;
       const hasResources = !!(

@@ -50,12 +50,16 @@ export class ActivatorExecutionRuntime {
     }
 
     try {
+      // Normalize identifiers to lowercase for case-insensitive matching
+      const normalizedIdentifiers = identifiers.map((id) => id.toLowerCase());
+
       const alreadyActive = this.service.getActivatedToolIds();
+      const alreadyActiveLower = new Set(alreadyActive.map((id) => id.toLowerCase()));
       const toActivate: string[] = [];
       const alreadyActiveList: string[] = [];
 
-      for (const id of identifiers) {
-        if (alreadyActive.includes(id)) {
+      for (const id of normalizedIdentifiers) {
+        if (alreadyActiveLower.has(id)) {
           alreadyActiveList.push(id);
         } else {
           toActivate.push(id);
@@ -65,7 +69,7 @@ export class ActivatorExecutionRuntime {
       // Fetch manifests for tools to activate
       const manifests = await this.service.getToolManifests(toActivate);
 
-      const foundIdentifiers = new Set(manifests.map((m) => m.identifier));
+      const foundIdentifiers = new Set(manifests.map((m) => m.identifier.toLowerCase()));
       const notFound = toActivate.filter((id) => !foundIdentifiers.has(id));
 
       const activatedTools: ActivatedToolInfo[] = manifests.map((m) => ({
