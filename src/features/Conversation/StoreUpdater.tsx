@@ -85,8 +85,6 @@ const StoreUpdater = memo<StoreUpdaterProps>(
         // when calling onMessagesChange (otherwise writes to the old topic key)
         storeApi.setState({
           context,
-          dbMessages: messages ?? [],
-          displayMessages: [],
           messagesInit: false,
         });
 
@@ -94,6 +92,8 @@ const StoreUpdater = memo<StoreUpdaterProps>(
         if (messages) {
           storeApi.getState().replaceMessages(messages);
           storeApi.setState({ messagesInit: true });
+        } else {
+          storeApi.setState({ dbMessages: [], displayMessages: [] });
         }
       }
     }, [contextKey]); // eslint-disable-line react-hooks/exhaustive-deps
