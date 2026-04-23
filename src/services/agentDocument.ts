@@ -184,9 +184,21 @@ class AgentDocumentService {
     return result;
   };
 
-  removeDocument = async (params: { agentId: string; id: string }) => {
-    const result = await lambdaClient.agentDocument.removeDocument.mutate(params);
-    await revalidateAgentDocuments(params.agentId);
+  removeDocument = async (params: {
+    agentId: string;
+    documentId?: string;
+    id: string;
+    topicId?: string;
+  }) => {
+    const { agentId, documentId, id, topicId } = params;
+    const result = await lambdaClient.agentDocument.removeDocument.mutate({ agentId, id });
+    await invalidateDocumentMutation({
+      agentDocumentId: id,
+      agentId,
+      cause: 'agent-document',
+      documentId,
+      topicId,
+    });
 
     return result;
   };

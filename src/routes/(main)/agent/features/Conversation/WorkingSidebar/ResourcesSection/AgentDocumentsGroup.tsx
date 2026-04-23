@@ -141,7 +141,12 @@ const DocumentItem = memo<DocumentItemProps>(({ agentId, document, mutate }) => 
         setDeleting(true);
         try {
           if (isActive) closeDocument();
-          await agentDocumentService.removeDocument({ agentId, id: document.id });
+          await agentDocumentService.removeDocument({
+            agentId,
+            documentId: document.documentId,
+            id: document.id,
+            topicId: pageMatch?.params.topicId,
+          });
           await mutate();
           message.success(t('workingPanel.resources.deleteSuccess', { ns: 'chat' }));
         } catch (error) {

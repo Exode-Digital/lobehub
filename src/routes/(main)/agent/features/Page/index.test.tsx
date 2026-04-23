@@ -1,14 +1,16 @@
 /**
  * @vitest-environment happy-dom
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TopicPage from './index';
 
 const useParamsMock = vi.hoisted(() => vi.fn());
 const useNavigateMock = vi.hoisted(() => vi.fn());
+const useClientDataSWRMock = vi.hoisted(() => vi.fn());
+const useAutoCreateTopicDocumentMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react-router-dom', async () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -32,7 +34,7 @@ vi.mock('@/features/EditorCanvas', () => ({
 }));
 
 vi.mock('@/libs/swr', () => ({
-  useClientDataSWR: () => ({ data: null, error: undefined, isLoading: false }),
+  useClientDataSWR: (...args: unknown[]) => useClientDataSWRMock(...args),
 }));
 
 vi.mock('@/services/document', () => ({
@@ -46,17 +48,12 @@ vi.mock('@/services/agentDocument', () => ({
   agentDocumentSWRKeys: { documentsList: (id: string) => ['agent-documents-list', id] },
 }));
 
-vi.mock('@/store/agent', () => ({
-  useAgentStore: (selector: (s: { activeAgentId?: string }) => unknown) =>
-    selector({ activeAgentId: 'agt_test' }),
-}));
-
 vi.mock('@/store/notebook/action', () => ({
   SWR_USE_FETCH_NOTEBOOK_DOCUMENTS: 'SWR_USE_FETCH_NOTEBOOK_DOCUMENTS',
 }));
 
 vi.mock('@/features/TopicCanvas/useAutoCreateTopicDocument', () => ({
-  useAutoCreateTopicDocument: () => ({ document: undefined, isLoading: false }),
+  useAutoCreateTopicDocument: (...args: unknown[]) => useAutoCreateTopicDocumentMock(...args),
 }));
 
 vi.mock('@lobehub/ui', () => ({
@@ -116,6 +113,20 @@ vi.mock('@/features/TopicCanvas', () => ({
 }));
 
 describe('Topic page route', () => {
+  beforeEach(() => {
+    useClientDataSWRMock.mockReset();
+    useAutoCreateTopicDocumentMock.mockReset();
+    useNavigateMock.mockReset();
+    useParamsMock.mockReset();
+
+    useClientDataSWRMock.mockReturnValue({ data: null, error: undefined, isLoading: false });
+    useAutoCreateTopicDocumentMock.mockReturnValue({
+      document: undefined,
+      documentId: undefined,
+      isLoading: false,
+    });
+  });
+
   it('renders FloatingChatPanel with route topic context', () => {
     useParamsMock.mockReturnValue({
       aid: 'agt_test',
@@ -138,6 +149,33 @@ describe('Topic page route', () => {
 
     expect(screen.getByTestId('floating-chat-panel')).toHaveAttribute('data-topic-id', 'tpc_test');
     expect(screen.getByTestId('floating-chat-panel')).toHaveAttribute('data-variant', 'embedded');
+    expect(useAutoCreateTopicDocumentMock).toHaveBeenCalledWith('tpc_test', 'agt_test');
+  });
+
+  it('redirects to the topic page document when the current doc id is invalid', async () => {
+    useParamsMock.mockReturnValue({
+      aid: 'agt_test',
+      docId: 'doc_deleted',
+      topicId: 'tpc_test',
+    });
+    useClientDataSWRMock.mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+    });
+    useAutoCreateTopicDocumentMock.mockReturnValue({
+      document: undefined,
+      documentId: 'doc_created',
+      isLoading: false,
+    });
+
+    render(<TopicPage />);
+
+    await waitFor(() =>
+      expect(useNavigateMock).toHaveBeenCalledWith('/agent/agt_test/tpc_test/page/doc_created', {
+        replace: true,
+      }),
+    );
   });
 
   it('returns null when aid or topicId is missing', () => {

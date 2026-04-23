@@ -14,7 +14,6 @@ import HeaderSlot from '@/routes/(main)/agent/(chat)/_layout/HeaderSlot';
 import { documentService } from '@/services/document';
 import { invalidateDocumentMutation } from '@/services/document/invalidation';
 import { documentSWRKeys } from '@/services/document/swrKeys';
-import { useAgentStore } from '@/store/agent';
 
 const MAX_PANEL_WIDTH = 1024;
 const TITLE_SAVE_DEBOUNCE = 500;
@@ -23,8 +22,7 @@ const TopicPage = memo(() => {
   const { aid, topicId, docId } = useParams<{ aid?: string; docId?: string; topicId?: string }>();
   const navigate = useNavigate();
 
-  const agentId = useAgentStore((s) => s.activeAgentId);
-  const { document: topicDocument } = useAutoCreateTopicDocument(topicId, agentId);
+  const { documentId: topicDocumentId } = useAutoCreateTopicDocument(topicId, aid);
 
   const [titleDraft, setTitleDraft] = useState<string | undefined>();
 
@@ -36,15 +34,15 @@ const TopicPage = memo(() => {
     documentService.getDocumentById(docId!),
   );
 
-  const isInvalidDoc = docId && !isDocLoading && (documentError || documentMeta === null);
+  const isInvalidDoc = Boolean(docId && !isDocLoading && (documentError || documentMeta == null));
 
   useEffect(() => {
     if (!aid || !topicId) return;
     if (!isInvalidDoc) return;
-    if (!topicDocument?.id) return;
-    if (topicDocument.id === docId) return;
-    navigate(`/agent/${aid}/${topicId}/page/${topicDocument.id}`, { replace: true });
-  }, [aid, topicId, docId, isInvalidDoc, topicDocument?.id, navigate]);
+    if (!topicDocumentId) return;
+    if (topicDocumentId === docId) return;
+    navigate(`/agent/${aid}/${topicId}/page/${topicDocumentId}`, { replace: true });
+  }, [aid, topicId, docId, isInvalidDoc, topicDocumentId, navigate]);
 
   useEffect(() => {
     setTitleDraft(undefined);
@@ -78,7 +76,7 @@ const TopicPage = memo(() => {
 
   const handleTitleChange = (next: string) => {
     setTitleDraft(next);
-    if (docId) debouncedSaveTitle(docId, next, { agentId, topicId });
+    if (docId) debouncedSaveTitle(docId, next, { agentId: aid, topicId });
   };
 
   if (!aid || !topicId) return null;
