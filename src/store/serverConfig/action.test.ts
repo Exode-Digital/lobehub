@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_FEATURE_FLAGS, mapFeatureFlagsEnvToState } from '@/config/featureFlags';
 import { type GlobalRuntimeConfig } from '@/types/serverConfig';
 
-import { createServerConfigStore } from './store';
+import { createServerConfigStore, initServerConfigStore } from './store';
 
 // Mock SWR
 let mockSWRData: GlobalRuntimeConfig | undefined;
@@ -93,6 +94,23 @@ describe('ServerConfigAction', () => {
 
       expect(store.getState().serverConfigInit).toBe(true);
       expect(store.getState().serverConfig).toEqual({ aiProvider: {}, telemetry: {} });
+    });
+
+    it('should preserve bootstrapped feature flags when the fetch fails', () => {
+      mockSWRData = undefined;
+      mockSWRError = new Error('network error');
+
+      const featureFlags = {
+        ...mapFeatureFlagsEnvToState(DEFAULT_FEATURE_FLAGS),
+        hideGitHub: true,
+        showCloudPromotion: true,
+      };
+      const store = initServerConfigStore({ featureFlags });
+
+      store.getState().useInitServerConfig();
+
+      expect(store.getState().serverConfigInit).toBe(true);
+      expect(store.getState().featureFlags).toEqual(featureFlags);
     });
 
     it('should pass a fetcher function that calls globalService', async () => {
