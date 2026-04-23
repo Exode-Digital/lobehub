@@ -27,6 +27,12 @@ export const useTopicNavigation = () => {
   const routeTopicId = params.topicId ?? activeTopicId ?? undefined;
   const topicBasePath =
     routeAgentId && routeTopicId ? SESSION_CHAT_TOPIC_URL(routeAgentId, routeTopicId) : undefined;
+  // URL-derived topic path (no store fallback) — used for sub-route detection so a cached
+  // activeTopicId cannot mask a non-topic page like /agent/:aid/profile.
+  const urlTopicBasePath =
+    routeAgentId && params.topicId
+      ? SESSION_CHAT_TOPIC_URL(routeAgentId, params.topicId)
+      : undefined;
   const focusTopicPopup = useFocusTopicPopup({ agentId: activeAgentId });
 
   const isInTopicContextRoute = useCallback(() => {
@@ -41,15 +47,15 @@ export const useTopicNavigation = () => {
 
   const isInAgentSubRoute = useCallback(() => {
     if (!routeAgentId) return false;
-    const agentBasePath = topicBasePath ?? SESSION_CHAT_URL(routeAgentId);
+    const agentBasePath = urlTopicBasePath ?? SESSION_CHAT_URL(routeAgentId);
 
-    // If pathname has more segments after /agent/:aid, it's a sub-route
+    // If pathname has more segments after /agent/:aid (or the active topic), it's a sub-route
     return (
       pathname.startsWith(agentBasePath) &&
       pathname !== agentBasePath &&
       pathname !== `${agentBasePath}/`
     );
-  }, [pathname, routeAgentId, topicBasePath]);
+  }, [pathname, routeAgentId, urlTopicBasePath]);
 
   const navigateToTopic = useCallback(
     async (topicId?: string, options?: NavigateToTopicOptions) => {
