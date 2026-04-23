@@ -266,7 +266,7 @@ const InternalEditor = memo<InternalEditorProps>(
           slashOption={slashItems ? { items: slashItems } : undefined}
           type={'text'}
           style={{
-            paddingBottom: 64,
+            paddingBottom: 32,
             ...style,
           }}
         />

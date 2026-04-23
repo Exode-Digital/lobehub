@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { BotPromptIcon } from '@lobehub/ui/icons';
-import { MessageSquarePlusIcon, RadioTowerIcon, SearchIcon } from 'lucide-react';
+import { ListTodoIcon, MessageSquarePlusIcon, RadioTowerIcon, SearchIcon } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -27,8 +27,9 @@ const Nav = memo(() => {
   const pathname = usePathname();
   const isProfileActive = pathname.includes('/profile');
   const isChannelActive = pathname.includes('/channel');
+  const isTasksActive = pathname.includes('/tasks');
   const router = useQueryRoute();
-  const { isAgentEditable } = useServerConfigStore(featureFlagsSelectors);
+  const { isAgentEditable, enableAgentTask } = useServerConfigStore(featureFlagsSelectors);
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const isHeterogeneousAgent = useAgentStore(agentSelectors.isCurrentAgentHeterogeneous);
   const hideProfile = !isAgentEditable;
@@ -39,8 +40,14 @@ const Nav = memo(() => {
   const { mutate } = useActionSWR('openNewTopicOrSaveTopic', openNewTopicOrSaveTopic);
   const handleNewTopic = () => {
     if (agentId) {
-      router.push(SESSION_CHAT_URL(agentId));
+      // If in agent sub-route, navigate back to agent chat first
+      if (isProfileActive || isChannelActive || isTasksActive) {
+        router.push(urlJoin('/agent', agentId));
+      } else {
+        router.push(SESSION_CHAT_URL(agentId));
+      }
     }
+
     mutate();
   };
 
@@ -50,6 +57,13 @@ const Nav = memo(() => {
         icon={MessageSquarePlusIcon}
         title={tTopic('actions.addNewTopic')}
         onClick={handleNewTopic}
+      />
+      <NavItem
+        icon={SearchIcon}
+        title={t('tab.search')}
+        onClick={() => {
+          toggleCommandMenu(true);
+        }}
       />
       {!hideProfile && (
         <NavItem
@@ -73,13 +87,17 @@ const Nav = memo(() => {
           }}
         />
       )}
-      <NavItem
-        icon={SearchIcon}
-        title={t('tab.search')}
-        onClick={() => {
-          toggleCommandMenu(true);
-        }}
-      />
+      {enableAgentTask && (
+        <NavItem
+          active={isTasksActive}
+          icon={ListTodoIcon}
+          title={t('tab.tasks')}
+          onClick={() => {
+            switchTopic(null, { skipRefreshMessage: true });
+            router.push(urlJoin('/agent', agentId!, 'tasks'));
+          }}
+        />
+      )}
     </Flexbox>
   );
 });
