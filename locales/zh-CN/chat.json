@@ -196,6 +196,7 @@
   "groupWizard.searchTemplates": "搜索模板…",
   "groupWizard.title": "创建群组",
   "groupWizard.useTemplate": "使用模板",
+  "heteroAgent.apiMode.providerNotFound": "服务商 \"{{providerId}}\" 尚未配置，请先到服务商设置填写 API Key。",
   "heteroAgent.cloudNotConfigured.action": "立即配置",
   "heteroAgent.cloudNotConfigured.desc": "请在 Agent 资料中配置 Claude Code Token，以开始发送消息。",
   "heteroAgent.cloudNotConfigured.title": "需要配置云端凭证",

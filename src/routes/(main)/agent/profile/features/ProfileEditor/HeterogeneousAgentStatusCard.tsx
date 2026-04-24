@@ -3,15 +3,27 @@
 import { isDesktop } from '@lobechat/const';
 import { type ClaudeAuthStatus, type ToolStatus } from '@lobechat/electron-client-ipc';
 import { getHeterogeneousAgentClientConfig } from '@lobechat/heterogeneous-agents/client';
-import type { HeterogeneousProviderConfig } from '@lobechat/types';
-import { ActionIcon, CopyButton, Flexbox, Icon, Input, Tag, Text, Tooltip } from '@lobehub/ui';
+import type { HeterogeneousApiConfig, HeterogeneousProviderConfig } from '@lobechat/types';
+import {
+  ActionIcon,
+  CopyButton,
+  Flexbox,
+  Icon,
+  Input,
+  Segmented,
+  Tag,
+  Text,
+  Tooltip,
+} from '@lobehub/ui';
 import { createStyles } from 'antd-style';
 import { Loader2Icon, PencilLine, RefreshCw, XCircle } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
+import { useClaudeCodeCompatibleProviders } from '@/features/Electron/HeterogeneousAgent/hooks/useClaudeCodeCompatibleProviders';
 import HeterogeneousAgentStatusGuide from '@/features/Electron/HeterogeneousAgent/StatusGuide';
+import ModelSelect from '@/features/ModelSelect';
 import { toolDetectorService } from '@/services/electron/toolDetector';
 
 const COMMAND_LINE_HEIGHT = 28;
@@ -205,12 +217,14 @@ const useStyles = createStyles(({ css, token }) => ({
 }));
 
 interface HeterogeneousAgentStatusCardProps {
+  onApiConfigChange?: (apiConfig: HeterogeneousApiConfig | undefined) => Promise<void> | void;
+  onAuthModeChange?: (authMode: 'subscription' | 'api') => Promise<void> | void;
   onCommandChange?: (command: string) => Promise<void> | void;
   provider: HeterogeneousProviderConfig;
 }
 
 const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
-  ({ provider, onCommandChange }) => {
+  ({ provider, onCommandChange, onAuthModeChange, onApiConfigChange }) => {
     const { t } = useTranslation('setting');
     const { styles } = useStyles();
     const navigate = useNavigate();
@@ -234,20 +248,57 @@ const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
       !status?.available &&
       !isUsingCustomCommand;
 
-    const fetchAuth = useCallback(async () => {
-      if (provider.type !== 'claude-code') {
-        setAuth(null);
-        return;
-      }
+    const authMode = provider.authMode ?? 'subscription';
+    const apiConfig = provider.apiConfig;
+    const supportsApiMode = provider.type === 'claude-code';
+    const { providers: ccProviders, modelsByProvider } = useClaudeCodeCompatibleProviders();
+    const ccProviderIds = useMemo(() => ccProviders.map((p) => p.id), [ccProviders]);
 
-      try {
-        const result = await toolDetectorService.getClaudeAuthStatus(resolvedCommand);
-        setAuth(result);
-      } catch (error) {
-        console.warn('[HeterogeneousAgentStatusCard] Failed to get Claude auth status:', error);
-        setAuth(null);
-      }
-    }, [provider.type, resolvedCommand]);
+    const handleAuthModeChange = useCallback(
+      async (next: 'subscription' | 'api') => {
+        if (next === authMode) return;
+        await onAuthModeChange?.(next);
+        // On first switch to API mode, auto-pick the first compatible provider/model
+        // so the user sees a working default instead of a blank form.
+        if (next === 'api' && !apiConfig && ccProviders.length > 0) {
+          const firstProvider = ccProviders[0];
+          const firstModel = modelsByProvider[firstProvider.id]?.[0];
+          if (firstModel) {
+            await onApiConfigChange?.({
+              model: firstModel.id,
+              providerId: firstProvider.id,
+            });
+          }
+        }
+      },
+      [authMode, apiConfig, ccProviders, modelsByProvider, onApiConfigChange, onAuthModeChange],
+    );
+
+    const handleModelSelect = useCallback(
+      async ({ model, provider: nextProviderId }: { model: string; provider: string }) => {
+        // If the user switched to a different provider, the previous smallFastModel
+        // no longer belongs to the new API key — drop it. Use '' rather than
+        // undefined: config persistence deep-merges and skips undefined keys, so a
+        // stale fast model would survive. An empty string overwrites it and is
+        // treated as "unset" by the spawn-time env builder.
+        const smallFastModel =
+          apiConfig?.providerId === nextProviderId ? apiConfig.smallFastModel : '';
+        await onApiConfigChange?.({
+          model,
+          providerId: nextProviderId,
+          smallFastModel,
+        });
+      },
+      [apiConfig, onApiConfigChange],
+    );
+
+    const handleSmallFastModelSelect = useCallback(
+      async ({ model }: { model: string; provider: string }) => {
+        if (!apiConfig) return;
+        await onApiConfigChange?.({ ...apiConfig, smallFastModel: model || undefined });
+      },
+      [apiConfig, onApiConfigChange],
+    );
 
     const detect = useCallback(async () => {
       if (!isDesktop || !resolvedCommand) {
@@ -262,23 +313,47 @@ const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
           command: resolvedCommand,
         });
         setStatus(result);
-        if (result.available) {
-          void fetchAuth();
-        } else {
-          setAuth(null);
-        }
       } catch (error) {
         console.error('[HeterogeneousAgentStatusCard] Failed to detect CLI:', error);
         setStatus({ available: false, error: (error as Error).message });
-        setAuth(null);
       } finally {
         setDetecting(false);
       }
-    }, [fetchAuth, provider.type, resolvedCommand]);
+    }, [provider.type, resolvedCommand]);
 
     useEffect(() => {
       void detect();
     }, [detect]);
+
+    // Fetch subscription auth status as a SEPARATE effect so toggling authMode
+    // doesn't rebuild `detect` and flash the top "可用" status row back to the
+    // "detecting…" placeholder.
+    useEffect(() => {
+      if (
+        provider.type !== 'claude-code' ||
+        authMode === 'api' ||
+        !status?.available ||
+        !resolvedCommand
+      ) {
+        setAuth(null);
+        return;
+      }
+
+      let cancelled = false;
+      (async () => {
+        try {
+          const result = await toolDetectorService.getClaudeAuthStatus(resolvedCommand);
+          if (!cancelled) setAuth(result);
+        } catch (error) {
+          console.warn('[HeterogeneousAgentStatusCard] Failed to get Claude auth status:', error);
+          if (!cancelled) setAuth(null);
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [authMode, provider.type, resolvedCommand, status?.available]);
 
     useEffect(() => {
       setCommandInput(resolvedCommand);
@@ -453,23 +528,47 @@ const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
       );
     };
 
-    const renderAuth = () => {
-      if (provider.type !== 'claude-code' || detecting || !status?.available || !auth?.loggedIn)
-        return null;
+    const renderAuthModeRow = () => {
+      if (!supportsApiMode || detecting || !status?.available) return null;
 
-      const authMode =
-        auth.authMethod === 'claude.ai' || auth.apiProvider === 'firstParty'
-          ? t('heterogeneousStatus.auth.subscription')
-          : t('heterogeneousStatus.auth.api');
+      return (
+        <div className={styles.detailRow}>
+          <Text className={styles.detailLabel}>{t('heterogeneousStatus.auth.label')}</Text>
+          <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
+            <Segmented
+              size="small"
+              value={authMode}
+              options={[
+                {
+                  label: t('heterogeneousStatus.auth.subscription'),
+                  value: 'subscription',
+                },
+                {
+                  label: t('heterogeneousStatus.auth.api'),
+                  value: 'api',
+                },
+              ]}
+              onChange={(next) => {
+                void handleAuthModeChange(next as 'subscription' | 'api');
+              }}
+            />
+          </Flexbox>
+        </div>
+      );
+    };
+
+    const renderSubscriptionAccount = () => {
+      if (
+        !supportsApiMode ||
+        authMode !== 'subscription' ||
+        detecting ||
+        !status?.available ||
+        !auth?.loggedIn
+      )
+        return null;
 
       return (
         <>
-          <div className={styles.detailRow}>
-            <Text className={styles.detailLabel}>{t('heterogeneousStatus.auth.label')}</Text>
-            <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
-              <Text className={styles.accountValue}>{authMode}</Text>
-            </Flexbox>
-          </div>
           <div className={styles.detailRow}>
             <Text className={styles.detailLabel}>{t('heterogeneousStatus.account.label')}</Text>
             <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
@@ -488,6 +587,77 @@ const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
               </Flexbox>
             </div>
           )}
+        </>
+      );
+    };
+
+    const renderApiConfig = () => {
+      if (!supportsApiMode || authMode !== 'api' || detecting || !status?.available) return null;
+
+      if (ccProviders.length === 0) {
+        return (
+          <div className={styles.detailRow}>
+            <Text className={styles.detailLabel}>{t('heterogeneousStatus.apiMode.model')}</Text>
+            <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
+              <Text className={styles.unavailableText}>
+                {t('heterogeneousStatus.apiMode.noProviders')}
+              </Text>
+              <Text
+                className={styles.metaText}
+                style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => navigate('/settings/provider')}
+              >
+                {t('heterogeneousStatus.apiMode.configureProvider')}
+              </Text>
+            </Flexbox>
+          </div>
+        );
+      }
+
+      // Fast model must share the primary model's provider (one API key per run),
+      // so if the provider hasn't been chosen yet we restrict to nothing.
+      const fastModelProviderIds = apiConfig ? [apiConfig.providerId] : [];
+
+      return (
+        <>
+          <div className={styles.detailRow}>
+            <Text className={styles.detailLabel}>{t('heterogeneousStatus.apiMode.model')}</Text>
+            <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
+              <ModelSelect
+                initialWidth
+                placeholder={t('heterogeneousStatus.apiMode.modelPlaceholder')}
+                popupWidth={360}
+                providerIds={ccProviderIds}
+                value={
+                  apiConfig ? { model: apiConfig.model, provider: apiConfig.providerId } : undefined
+                }
+                onChange={(next) => {
+                  void handleModelSelect(next);
+                }}
+              />
+            </Flexbox>
+          </div>
+          <div className={styles.detailRow}>
+            <Text className={styles.detailLabel}>
+              {t('heterogeneousStatus.apiMode.smallFastModel')}
+            </Text>
+            <Flexbox horizontal align="center" gap={8} style={{ flexWrap: 'wrap' }}>
+              <ModelSelect
+                initialWidth
+                placeholder={t('heterogeneousStatus.apiMode.smallFastModelPlaceholder')}
+                popupWidth={360}
+                providerIds={fastModelProviderIds}
+                value={
+                  apiConfig?.smallFastModel
+                    ? { model: apiConfig.smallFastModel, provider: apiConfig.providerId }
+                    : undefined
+                }
+                onChange={(next) => {
+                  void handleSmallFastModelSelect(next);
+                }}
+              />
+            </Flexbox>
+          </div>
         </>
       );
     };
@@ -518,7 +688,9 @@ const HeterogeneousAgentStatusCard = memo<HeterogeneousAgentStatusCardProps>(
         </div>
         <div className={styles.detailList}>
           {renderCommandEditor()}
-          {renderAuth()}
+          {renderAuthModeRow()}
+          {renderSubscriptionAccount()}
+          {renderApiConfig()}
         </div>
         {showCliInstallGuide && (
           <HeterogeneousAgentStatusGuide

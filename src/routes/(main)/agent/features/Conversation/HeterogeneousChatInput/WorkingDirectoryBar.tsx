@@ -24,6 +24,8 @@ import { agentByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
 
+import ApiModeModelBar from './ApiModeModelBar';
+
 const styles = createStaticStyles(({ css }) => ({
   bar: css`
     padding-block: 0;
@@ -152,6 +154,7 @@ const WorkingDirectoryBar = memo(() => {
         {effectiveWorkingDirectory && repoType && (
           <GitStatus isGithub={repoType === 'github'} path={effectiveWorkingDirectory} />
         )}
+        <ApiModeModelBar agentId={agentId} />
       </Flexbox>
       <Tooltip title={tChat('heteroAgent.fullAccess.tooltip')}>{fullAccessBadge}</Tooltip>
     </Flexbox>

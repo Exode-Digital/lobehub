@@ -39,7 +39,10 @@ interface ModelSelectProps extends Pick<SelectProps, 'loading' | 'size' | 'style
   defaultValue?: { model: string; provider?: string };
   initialWidth?: boolean;
   onChange?: (props: { model: string; provider: string }) => void;
+  placeholder?: string;
   popupWidth?: number;
+  /** Restrict the picker to these provider ids. Empty array → show everything. */
+  providerIds?: string[];
   requiredAbilities?: (keyof EnabledProviderWithModels['children'][number]['abilities'])[];
   showAbility?: boolean;
   value?: { model: string; provider?: string };
@@ -57,8 +60,15 @@ const ModelSelect = memo<ModelSelectProps>(
     variant,
     initialWidth = false,
     popupWidth,
+    placeholder,
+    providerIds,
   }) => {
-    const enabledList = useEnabledChatModels();
+    const fullList = useEnabledChatModels();
+    const enabledList = useMemo(() => {
+      if (!providerIds || providerIds.length === 0) return fullList;
+      const allow = new Set(providerIds);
+      return fullList.filter((p) => allow.has(p.id));
+    }, [fullList, providerIds]);
 
     const options = useMemo<SelectProps['options']>(() => {
       const getChatModels = (provider: EnabledProviderWithModels) => {
@@ -110,6 +120,7 @@ const ModelSelect = memo<ModelSelectProps>(
           defaultValue={`${value?.provider}/${value?.model}`}
           loading={loading}
           options={options}
+          placeholder={placeholder}
           popupClassName={styles.popup}
           popupMatchSelectWidth={popupWidth === undefined ? false : popupWidth}
           size={size}

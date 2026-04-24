@@ -155,6 +155,8 @@ export default {
   'groupWizard.searchTemplates': 'Search templates...',
   'groupWizard.title': 'Create Group',
   'groupWizard.useTemplate': 'Use Template',
+  'heteroAgent.apiMode.providerNotFound':
+    'The provider "{{providerId}}" is not configured. Open provider settings to set an API key first.',
   'heteroAgent.fullAccess.label': 'Full access',
   'heteroAgent.fullAccess.tooltip':
     'Claude Code runs locally with full read/write access to the working directory. Switching permission modes is not available yet.',
