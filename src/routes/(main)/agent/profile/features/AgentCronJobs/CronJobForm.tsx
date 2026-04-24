@@ -6,6 +6,7 @@ import { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { type AgentCronJob } from '@/database/schemas/agentCronJob';
+import ModelSelect from '@/features/ModelSelect';
 
 // Form data interface - excludes server-managed fields
 interface CronJobFormData {
@@ -14,7 +15,9 @@ interface CronJobFormData {
   enabled?: boolean;
   executionConditions?: any;
   maxExecutions?: number | null;
+  model?: string | null;
   name?: string | null;
+  provider?: string | null;
 }
 
 const { TextArea } = Input;
@@ -64,6 +67,9 @@ const CronJobForm = memo<CronJobFormProps>(({ editingJob, formRef, onSubmit }) =
         cronPattern: editingJob.cronPattern,
         maxExecutions: editingJob.maxExecutions,
         maxExecutionsPerDay: conditions?.maxExecutionsPerDay,
+        model: editingJob.model && editingJob.provider
+          ? { model: editingJob.model, provider: editingJob.provider }
+          : undefined,
         name: editingJob.name,
         timeRange: conditions?.timeRange
           ? [dayjs(conditions.timeRange.start, 'HH:mm'), dayjs(conditions.timeRange.end, 'HH:mm')]
@@ -99,7 +105,9 @@ const CronJobForm = memo<CronJobFormProps>(({ editingJob, formRef, onSubmit }) =
       enabled: false,
       executionConditions: Object.keys(executionConditions).length > 0 ? executionConditions : null,
       maxExecutions: values.maxExecutions || null,
+      model: values.model?.model ?? null,
       name: values.name,
+      provider: values.model?.provider ?? null,
     };
 
     onSubmit(data);
@@ -147,6 +155,14 @@ const CronJobForm = memo<CronJobFormProps>(({ editingJob, formRef, onSubmit }) =
           placeholder={t('agentCronJobs.form.content.placeholder')}
           rows={3}
         />
+      </Form.Item>
+
+      <Form.Item
+        label={t('agentCronJobs.model')}
+        name="model"
+        tooltip={t('agentCronJobs.modelTooltip')}
+      >
+        <ModelSelect />
       </Form.Item>
 
       <Form.Item

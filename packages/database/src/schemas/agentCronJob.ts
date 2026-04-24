@@ -34,6 +34,10 @@ export const agentCronJobs = pgTable(
     cronPattern: text('cron_pattern').notNull(), // e.g., "*/30 * * * *" (every 30 minutes)
     timezone: text('timezone').default('UTC'),
 
+    // Optional model override — null means inherit from agent's current config
+    model: text('model'),
+    provider: text('provider'),
+
     // Content fields
     content: text('content').notNull(), // Simple text content
     editData: jsonb('edit_data'), // Rich content data (markdown, files, images, etc.)

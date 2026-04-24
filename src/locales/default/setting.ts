@@ -69,6 +69,8 @@ export default {
   'agentCronJobs.interval.weekly': 'Weekly',
   'agentCronJobs.lastExecuted': 'Last Executed',
   'agentCronJobs.maxExecutions': 'Max Executions',
+  'agentCronJobs.model': 'Model',
+  'agentCronJobs.modelTooltip': "Specify a model for this cron job. Leave empty to inherit the agent's current model.",
   'agentCronJobs.name': 'Task Name',
   'agentCronJobs.never': 'Never',
   'agentCronJobs.noExecutionResults': 'No execution results',
