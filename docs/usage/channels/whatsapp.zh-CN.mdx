@@ -1,0 +1,169 @@
+---
+title: 将 LobeHub 连接到 WhatsApp
+description: >-
+  学习如何通过 Meta Cloud API 将 WhatsApp Business 机器人连接到 LobeHub
+  代理，使您的 AI 助手能够在 WhatsApp 私信对话中与用户互动。
+tags:
+  - WhatsApp
+  - 消息渠道
+  - 机器人设置
+  - 集成
+---
+
+# 将 LobeHub 连接到 WhatsApp
+
+通过将 WhatsApp 渠道连接到您的 LobeHub 代理，用户可以直接在 WhatsApp 中与 AI 助手互动。WhatsApp 集成使用官方的 **Meta Cloud API**，Meta 与 LobeHub 之间没有第三方中转。
+
+> \[!NOTE]
+>
+> WhatsApp Cloud API 当前仅向机器人投递 1:1（私聊）会话，平台本身不支持群聊。
+
+## 前置条件
+
+- 一个拥有有效订阅的 LobeHub 账户
+- 一个 [Meta for Developers](https://developers.facebook.com/) 账户
+- 一个 Meta 商业组合（首次为应用添加 WhatsApp 产品时会自动创建）
+- 一个您可控制的电话号码。可以二选一：
+  - 使用 Meta 在每个新 WhatsApp 应用中免费提供的 **测试号码**（推荐用于评估）
+  - 注册一个 **真实的企业电话号码**，且该号码当前未在 WhatsApp 个人版中激活
+
+## 第一步：创建带有 WhatsApp 产品的 Meta 应用
+
+<Steps>
+  ### 打开 Meta Developers 控制台
+
+  访问 [developers.facebook.com/apps](https://developers.facebook.com/apps) 并点击 **Create App**。应用类型选择 **Business** 并填写名称。
+
+  ### 添加 WhatsApp 产品
+
+  在应用控制台中，找到 **WhatsApp** 产品卡片并点击 **Set up**。Meta 会自动配置一个测试商业账户、一个测试电话号码和一个临时访问令牌。
+
+  ### 记录 Phone Number ID
+
+  打开 **WhatsApp → API setup**。页面会列出一个 **Phone number ID**（一串数字，不是手机号本身）。复制该值 —— 稍后将作为 **Phone Number ID** 粘贴到 LobeHub。
+
+  > **提示：** 显示的电话号码（例如 `+1 555-555-1234`）只是给人看的；LobeHub 需要的是它旁边的数字 Phone Number ID。
+</Steps>
+
+## 第二步：生成长期 Access Token
+
+API setup 页面给出的临时令牌仅有 24 小时有效期。生产部署需要一个 **永不过期的 System User Access Token**。
+
+<Steps>
+  ### 创建 System User
+
+  在 **Business Settings → Users → System Users** 中点击 **Add**，创建一个角色为 **Admin** 的系统用户。建议起一个能识别的名字（如 `lobehub-whatsapp`）。
+
+  ### 关联 WhatsApp 资产
+
+  仍在 Business Settings 中打开新创建的系统用户，点击 **Add Assets**，选择 **Apps**，挑选您的 WhatsApp 应用，授予 **Full control** 权限。
+
+  ### 生成令牌
+
+  回到系统用户页面，点击 **Generate New Token**。选择您的应用，并勾选两项权限：
+
+  - `whatsapp_business_messaging`
+  - `whatsapp_business_management`
+
+  令牌过期时间选择 **Never**。立即复制令牌 ——Meta 只会展示一次。
+</Steps>
+
+## 第三步：选择 Verify Token 并记录 App Secret
+
+<Steps>
+  ### 选择 Verify Token
+
+  随机选择一串字符串（例如 `openssl rand -hex 16` 的输出）。这是只有您和 Meta 知道的共享密钥。**完全相同的值** 需要分别填写在两处：LobeHub 渠道设置中和 Meta 的 Webhook 配置中。
+
+  ### 复制 App Secret
+
+  在 Meta 应用的 **Settings → Basic** 页面，点击 **App Secret** 旁的 **Show** 并复制。LobeHub 使用 App Secret 校验每条入站 Webhook 的 `X-Hub-Signature-256` 头。
+
+  > **重要提示：** Access Token、Verify Token 与 App Secret 都是敏感凭据，切勿提交到代码仓库或在截图中泄露。
+</Steps>
+
+## 第四步：在 LobeHub 中配置 WhatsApp
+
+<Steps>
+  ### 打开渠道设置
+
+  在 LobeHub 中，进入您的代理设置，选择 **渠道** 标签。在平台列表中点击 **WhatsApp**。
+
+  ### 填写凭据
+
+  | 字段                  | 值                                     |
+  | ------------------- | ------------------------------------- |
+  | **Phone Number ID** | 来自 Meta API setup 的数字 Phone Number ID |
+  | **Access Token**    | 第二步中生成的长期 System User Token           |
+  | **Verify Token**    | 第三步中选择的随机字符串                          |
+  | **App Secret**      | Settings → Basic 页面的 App Secret（推荐填写） |
+
+  ### 保存配置
+
+  点击 **保存配置**。LobeHub 会加密您的凭据，调用一次 Cloud API 验证 Token 可用，并在凭据下方显示 **Webhook URL** 供下一步使用。
+
+  > **注意：** 与 Telegram 不同，WhatsApp Cloud API 不支持程序化注册 Webhook，LobeHub 无法替您在 Meta 控制台填写 URL，需要您在第五步中自行粘贴。
+</Steps>
+
+## 第五步：在 Meta 控制台配置 Webhook
+
+<Steps>
+  ### 复制 Webhook URL
+
+  在 LobeHub 的 WhatsApp 渠道详情页中，复制凭据区域下方显示的 **Webhook URL**。形如 `https://app.lobehub.com/api/agent/webhooks/whatsapp/<your-phone-number-id>`。
+
+  ### 粘贴到 Meta
+
+  回到 Meta 应用控制台的 **WhatsApp → Configuration → Webhook**，点击 **Edit**，并填写：
+
+  - **Callback URL：** 粘贴 LobeHub 的 Webhook URL。
+  - **Verify token：** 粘贴与 LobeHub 中完全相同的值。
+
+  点击 **Verify and Save**。Meta 会发送一个带 `hub.challenge` 的 GET 请求；如果 Verify Token 匹配，LobeHub 会回显该挑战值。
+
+  ### 订阅 `messages` 字段
+
+  校验握手成功后，Meta 会展示一组可订阅的 Webhook 字段。点击 **Manage** 至少打开 **`messages`** 字段。这是 LobeHub 唯一需要的字段。
+</Steps>
+
+## 第六步：测试连接
+
+<Steps>
+  ### 运行测试连接
+
+  在 LobeHub 渠道设置中点击 **测试连接**。LobeHub 会再次调用 Cloud API 验证凭据，并把 Meta 返回的具体错误信息透传给你。
+
+  ### 发送一条真实消息
+
+  - **测试号码：** 在 **WhatsApp → API setup** 里把您的个人 WhatsApp 账号加入收件人允许列表，然后用手机给测试号码发消息。
+  - **生产号码：** 用任意手机的 WhatsApp 给您的企业号码发消息。
+
+  几秒内 LobeHub 代理就会回复。
+</Steps>
+
+## 配置参考
+
+| 字段                  | 是否必需 | 描述                                                                                                       |
+| ------------------- | ---- | -------------------------------------------------------------------------------------------------------- |
+| **Phone Number ID** | 是    | **WhatsApp → API setup** 中显示在号码旁的数字 ID。同时作为机器人标识与 Webhook 路径。                                            |
+| **Access Token**    | 是    | 拥有 `whatsapp_business_messaging` + `whatsapp_business_management` 两个权限的 System User Access Token，建议永不过期。 |
+| **Verify Token**    | 是    | 您自行选择的随机字符串。LobeHub 与 Meta Webhook 配置中的值必须完全一致。                                                          |
+| **App Secret**      | 推荐   | Meta App Secret。配置后每条入站 Webhook 都会校验 `X-Hub-Signature-256`，签名不匹配将被拒绝。                                    |
+
+## 能力说明
+
+WhatsApp Cloud API 有一些平台层面的限制，LobeHub 的对接行为如下：
+
+- **Markdown** —— 出站消息会转换为 WhatsApp 的轻量级语法（`*粗体*`、`_斜体_`、`~删除线~`、`` `代码` ``）。
+- **消息编辑** —— Cloud API 不支持编辑已发送消息，因此 LobeHub 只发送 **最终回复**，不会逐步刷新中间进度。Agent 工作时仍会显示 "输入中" 状态。
+- **表情反应** —— Discord/Slack 上使用的 👀 / ✏️ 状态反应在 WhatsApp 上不会显示。
+- **附件** —— 入站的图片、视频、音频、语音备忘、文件、贴纸会按需下载并送给模型。出站消息当前仅支持文本。
+- **群聊** —— Cloud API 不向机器人投递群聊，无法支持。
+
+## 故障排除
+
+- **Meta 控制台 "Verify and Save" 失败。** LobeHub 与 Meta 的 Verify Token 必须完全一致（不能有尾部空格）。重新粘贴两边的值，保存后再试。
+- **保存或测试连接时出现 `Invalid OAuth access token`。** 您的 Access Token 过期或权限不足。重新生成一个 System User Token，勾选两个 `whatsapp_business_*` 权限并将过期时间设为 **Never**。
+- **Webhook 投递返回 `401 Invalid signature`。** LobeHub 中的 App Secret 与 Meta 应用中的不一致。要么在 LobeHub 中更新为正确的 App Secret，要么清空它（仅依赖 Verify Token，安全性较低但仍可工作）。
+- **测试号码下机器人不回复。** 测试号码只会向 **WhatsApp → API setup → To** 中明确添加的号码投递。把您的手机号加进去再试。
+- **生产号码下机器人不回复。** 检查 **WhatsApp → Configuration → Webhook → Manage** 是否已订阅 **`messages`** 字段。未订阅时 Meta 不会调用 LobeHub。

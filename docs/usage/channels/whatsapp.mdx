@@ -1,0 +1,170 @@
+---
+title: Connect LobeHub to WhatsApp
+description: >-
+  Learn how to connect a WhatsApp Business bot to your LobeHub agent via the
+  Meta Cloud API, enabling your AI assistant to chat with users in WhatsApp
+  direct conversations.
+tags:
+  - WhatsApp
+  - Message Channels
+  - Bot Setup
+  - Integration
+---
+
+# Connect LobeHub to WhatsApp
+
+By connecting a WhatsApp channel to your LobeHub agent, users can interact with the AI assistant directly through WhatsApp. WhatsApp integration uses the official **Meta Cloud API** for WhatsApp Business — there is no third-party broker between Meta and LobeHub.
+
+> \[!NOTE]
+>
+> WhatsApp Cloud API only delivers 1:1 (direct) conversations to bots today. Group chats are not supported by the platform itself.
+
+## Prerequisites
+
+- A LobeHub account with an active subscription
+- A [Meta for Developers](https://developers.facebook.com/) account
+- A Meta Business Portfolio (created automatically the first time you add the WhatsApp product to an app)
+- A phone number you control. You can either:
+  - Use the **test phone number** Meta provisions for free with every new WhatsApp app (recommended for evaluation), or
+  - Register a **real business phone number** that is not currently active on the WhatsApp consumer app
+
+## Step 1: Create a Meta App with the WhatsApp Product
+
+<Steps>
+  ### Open the Meta Developers dashboard
+
+  Go to [developers.facebook.com/apps](https://developers.facebook.com/apps) and click **Create App**. Choose **Business** as the app type and give it a name.
+
+  ### Add the WhatsApp product
+
+  From the app dashboard, find the **WhatsApp** product card and click **Set up**. Meta will provision a test business account, a test phone number, and a temporary access token.
+
+  ### Note your Phone Number ID
+
+  Open **WhatsApp → API setup**. The page lists a **Phone number ID** (a numeric value, not the phone number itself). Copy it — you will paste it into LobeHub as the **Phone Number ID**.
+
+  > **Tip:** The display phone number (e.g. `+1 555-555-1234`) is for human reference only. LobeHub needs the numeric Phone Number ID right next to it.
+</Steps>
+
+## Step 2: Generate a Long-Lived Access Token
+
+The temporary token Meta gives you on the API setup page expires after 24 hours. For a production deployment you need a **System User access token** that does not expire.
+
+<Steps>
+  ### Create a System User
+
+  In **Business Settings → Users → System Users**, click **Add** and create a system user with the **Admin** role. Name it something recognizable (e.g. `lobehub-whatsapp`).
+
+  ### Assign the WhatsApp asset
+
+  Still in Business Settings, open the new system user, click **Add Assets**, choose **Apps**, select your WhatsApp app, and grant **Full control**.
+
+  ### Generate the token
+
+  Back on the system user page, click **Generate New Token**. Select your app, then check both:
+
+  - `whatsapp_business_messaging`
+  - `whatsapp_business_management`
+
+  Choose **Never** for token expiration. Copy the token immediately — Meta only shows it once.
+</Steps>
+
+## Step 3: Pick a Verify Token and Note the App Secret
+
+<Steps>
+  ### Choose your Verify Token
+
+  Pick any random string (for example, the output of `openssl rand -hex 16`). This is a shared secret only you and Meta know. You will paste the **same value** in two places: LobeHub's channel settings, and Meta's webhook configuration.
+
+  ### Copy the App Secret
+
+  In your Meta App's **Settings → Basic** page, click **Show** next to **App Secret** and copy it. The App Secret is used by LobeHub to verify the `X-Hub-Signature-256` header on every inbound webhook delivery.
+
+  > **Important:** The Access Token, Verify Token, and App Secret are all sensitive credentials. Never commit them to source control or share them in screenshots.
+</Steps>
+
+## Step 4: Configure WhatsApp in LobeHub
+
+<Steps>
+  ### Open Channel Settings
+
+  In LobeHub, navigate to your agent's settings, then select the **Channels** tab. Click **WhatsApp** from the platform list.
+
+  ### Fill in the credentials
+
+  | Field               | Value                                              |
+  | ------------------- | -------------------------------------------------- |
+  | **Phone Number ID** | The numeric Phone Number ID from Meta's API setup  |
+  | **Access Token**    | The long-lived System User token from Step 2       |
+  | **Verify Token**    | The random string you chose in Step 3              |
+  | **App Secret**      | The App Secret from Settings → Basic (recommended) |
+
+  ### Save Configuration
+
+  Click **Save Configuration**. LobeHub will encrypt your credentials, call the Cloud API once to verify the token works, and surface a **Webhook URL** for the next step.
+
+  > **Note:** Unlike Telegram, the WhatsApp Cloud API does not allow programmatic webhook registration. LobeHub cannot wire the URL for you — you must paste it in the Meta dashboard yourself in Step 5.
+</Steps>
+
+## Step 5: Wire the Webhook in the Meta Dashboard
+
+<Steps>
+  ### Copy the Webhook URL
+
+  In LobeHub's WhatsApp channel detail page, copy the **Webhook URL** displayed under the credentials section. It looks like `https://app.lobehub.com/api/agent/webhooks/whatsapp/<your-phone-number-id>`.
+
+  ### Paste it in Meta
+
+  Back in your Meta App's dashboard, go to **WhatsApp → Configuration → Webhook**, click **Edit**, and:
+
+  - **Callback URL:** paste the LobeHub Webhook URL.
+  - **Verify token:** paste the same value you entered in LobeHub.
+
+  Click **Verify and Save**. Meta sends a `GET` request with `hub.challenge`; LobeHub responds with the challenge if the verify token matches.
+
+  ### Subscribe to the `messages` field
+
+  After the verification handshake succeeds, Meta shows a list of webhook fields. Click **Manage** and turn on at least the **`messages`** field. This is the only field LobeHub needs.
+</Steps>
+
+## Step 6: Test the Connection
+
+<Steps>
+  ### Run Test Connection
+
+  Click **Test Connection** in LobeHub's channel settings. LobeHub re-runs the credential verification against the Cloud API and reports any errors with the exact Meta error message.
+
+  ### Send a real message
+
+  - **Test phone number:** in **WhatsApp → API setup**, add your personal WhatsApp account to the recipient allow-list, then send a message from your phone to the test number.
+  - **Production number:** open WhatsApp on any phone, send a message to your business number.
+
+  Within a few seconds your LobeHub agent should reply.
+</Steps>
+
+## Configuration Reference
+
+| Field               | Required    | Description                                                                                                                              |
+| ------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phone Number ID** | Yes         | The numeric ID shown next to your phone number in **WhatsApp → API setup**. Used both as the bot identity and webhook path.              |
+| **Access Token**    | Yes         | A System User access token with `whatsapp_business_messaging` + `whatsapp_business_management` scopes. Use a token that does not expire. |
+| **Verify Token**    | Yes         | A random string you choose. Must be entered identically in LobeHub and in the Meta webhook configuration.                                |
+| **App Secret**      | Recommended | Meta App Secret. When set, every inbound webhook is rejected unless its `X-Hub-Signature-256` header matches.                            |
+
+## Feature Notes
+
+WhatsApp Cloud API has a few limitations LobeHub maps as follows:
+
+- **Markdown** — outbound messages are converted to WhatsApp's lightweight markup (`*bold*`, `_italic_`, `~strike~`, `` `code` ``).
+- **Message editing** — Cloud API does not support editing sent messages, so LobeHub only sends the **final reply**, not per-step progress edits. The agent will still appear to be "typing" while it works.
+- **Reactions** — the 👀 / ✏️ status reactions used on Discord and Slack are not surfaced on WhatsApp.
+- **Attachments** — inbound images, video, audio, voice notes, documents and stickers are downloaded on demand and forwarded to the model. Outbound replies are text-only today.
+- **Group chats** — not delivered to bots by Cloud API.
+
+## Troubleshooting
+
+- **"Verify and Save" fails in the Meta dashboard.** The Verify Token in LobeHub and Meta must match exactly (no trailing whitespace). Re-paste both values, save, and try again.
+- **`Invalid OAuth access token` on Save / Test Connection.** Your access token expired or has the wrong scopes. Generate a new System User token with the two `whatsapp_business_*` permissions and **Never** as the expiration.
+- **Webhook delivery is rejected with `401 Invalid signature`.** The App Secret in LobeHub doesn't match the one in the Meta App. Either update LobeHub with the correct App Secret, or remove it (and rely on the Verify Token alone — less secure but functional).
+- **Bot doesn't respond on the test number.** The test phone number only delivers to numbers explicitly added to its allow-list in **WhatsApp → API setup → To**. Add your phone there and try again.
+- **Bot doesn't respond on a real number.** Check that the **`messages`** webhook field is subscribed in **WhatsApp → Configuration → Webhook → Manage**. Without it Meta never calls LobeHub.

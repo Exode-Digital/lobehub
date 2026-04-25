@@ -101,6 +101,23 @@ export default {
   'channel.secretTokenHint': 'Optional. Used to verify webhook requests from Telegram.',
   'channel.secretTokenPlaceholder': 'Optional secret for webhook verification',
   'channel.telegram.description': 'Connect this assistant to Telegram for private and group chats.',
+  'channel.whatsapp.description':
+    'Connect this assistant to WhatsApp via the Meta Cloud API for direct user chats.',
+  'channel.whatsapp.phoneNumberId': 'Phone Number ID',
+  'channel.whatsapp.phoneNumberIdHint':
+    'Numeric Phone Number ID from the WhatsApp tab in your Meta App dashboard. This is the bot identifier and is used in the webhook URL.',
+  'channel.whatsapp.phoneNumberIdPlaceholder': 'e.g. 123456789012345',
+  'channel.whatsapp.accessToken': 'Access Token',
+  'channel.whatsapp.accessTokenHint':
+    'Long-lived System User access token with `whatsapp_business_messaging` and `whatsapp_business_management` scopes. Token will be encrypted and stored securely.',
+  'channel.whatsapp.verifyToken': 'Verify Token',
+  'channel.whatsapp.verifyTokenHint':
+    'Operator-defined secret. Paste the same value into the Meta Cloud API webhook configuration so the GET verification handshake succeeds.',
+  'channel.whatsapp.appSecret': 'App Secret',
+  'channel.whatsapp.appSecretHint':
+    'Meta App Secret. Optional but strongly recommended — when set, every webhook delivery is rejected unless its X-Hub-Signature-256 header matches.',
+  'channel.whatsapp.webhookManualSetup':
+    'WhatsApp does not allow programmatic webhook registration. Copy this URL into the Meta App dashboard ("WhatsApp → Configuration → Webhooks → Callback URL"), set the Verify Token to match, and subscribe to the `messages` field.',
   'channel.testConnection': 'Test Connection',
   'channel.testFailed': 'Connection test failed',
   'channel.testSuccess': 'Connection test passed',

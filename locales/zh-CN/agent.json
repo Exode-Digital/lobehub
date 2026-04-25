@@ -139,5 +139,16 @@
   "channel.wechatScanToConnect": "扫码连接",
   "channel.wechatTips": "请将微信更新至最新版本并重新启动。ClawBot 插件正在逐步推广，请前往设置 > 插件确认是否已获得访问权限。",
   "channel.wechatUserId": "微信用户 ID",
-  "channel.wechatUserIdHint": "通过授权流程返回的微信账号标识符。"
+  "channel.wechatUserIdHint": "通过授权流程返回的微信账号标识符。",
+  "channel.whatsapp.accessToken": "Access Token",
+  "channel.whatsapp.accessTokenHint": "拥有 `whatsapp_business_messaging` 和 `whatsapp_business_management` 权限的系统用户长期 Access Token，将被加密存储。",
+  "channel.whatsapp.appSecret": "App Secret",
+  "channel.whatsapp.appSecretHint": "Meta App Secret，可选但强烈建议。配置后每条 Webhook 都会校验 X-Hub-Signature-256 签名，签名不匹配将被拒绝。",
+  "channel.whatsapp.description": "通过 Meta Cloud API 将助手接入 WhatsApp，与用户进行 1 对 1 对话。",
+  "channel.whatsapp.phoneNumberId": "Phone Number ID",
+  "channel.whatsapp.phoneNumberIdHint": "Meta App 控制台 WhatsApp 选项卡中的数字 Phone Number ID。它同时作为机器人标识符，用于 Webhook URL。",
+  "channel.whatsapp.phoneNumberIdPlaceholder": "例如 123456789012345",
+  "channel.whatsapp.verifyToken": "Verify Token",
+  "channel.whatsapp.verifyTokenHint": "由你自己定义的校验串。在 Meta Cloud API Webhook 配置里填入完全相同的值，GET 校验握手才能通过。",
+  "channel.whatsapp.webhookManualSetup": "WhatsApp 不支持自动注册 Webhook，请将此 URL 粘贴到 Meta App 控制台的 “WhatsApp → Configuration → Webhooks → Callback URL”，把 Verify Token 设置为与上面一致，并订阅 `messages` 字段。"
 }
