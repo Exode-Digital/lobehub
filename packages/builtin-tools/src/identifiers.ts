@@ -3,6 +3,7 @@ import { AgentBuilderManifest } from '@lobechat/builtin-tool-agent-builder';
 import { AgentDocumentsManifest } from '@lobechat/builtin-tool-agent-documents';
 import { AgentManagementManifest } from '@lobechat/builtin-tool-agent-management';
 import { CalculatorManifest } from '@lobechat/builtin-tool-calculator';
+import { ClarifyManifest } from '@lobechat/builtin-tool-clarify';
 import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
 import { CredsManifest } from '@lobechat/builtin-tool-creds';
 import { GroupAgentBuilderManifest } from '@lobechat/builtin-tool-group-agent-builder';
@@ -25,6 +26,7 @@ export const builtinToolIdentifiers: string[] = [
   AgentDocumentsManifest.identifier,
   AgentManagementManifest.identifier,
   CalculatorManifest.identifier,
+  ClarifyManifest.identifier,
   CloudSandboxManifest.identifier,
   CredsManifest.identifier,
   GroupAgentBuilderManifest.identifier,

@@ -46,7 +46,7 @@ export const DEFAULT_AGENT_CONFIG: LobeAgentConfig = {
     temperature: 1,
     top_p: 1,
   },
-  plugins: [],
+  plugins: ['lobe-clarify'],
   provider: DEFAULT_PROVIDER,
   systemRole: '',
   tts: DEFAUTT_AGENT_TTS_CONFIG,

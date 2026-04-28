@@ -1,5 +1,6 @@
 // Disable the auto sort key eslint rule to make the code more logic and readable
 import { type AgentRuntimeContext } from '@lobechat/agent-runtime';
+import { ClarifyIdentifier } from '@lobechat/builtin-tool-clarify';
 import { MESSAGE_CANCEL_FLAT } from '@lobechat/const';
 import { type ConversationContext } from '@lobechat/types';
 
@@ -18,6 +19,52 @@ import { dbMessageSelectors } from '../../message/selectors';
  */
 
 type Setter = StoreSetter<ChatStore>;
+
+interface ClarifyInteractionAnswer {
+  notes?: unknown;
+  other?: unknown;
+  question?: unknown;
+  selected?: unknown;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const formatClarifyAnswer = (answer: ClarifyInteractionAnswer): string => {
+  const selected = Array.isArray(answer.selected)
+    ? answer.selected.filter((item): item is string => typeof item === 'string' && !!item.trim())
+    : [];
+  const other = typeof answer.other === 'string' ? answer.other.trim() : '';
+  const notes = typeof answer.notes === 'string' ? answer.notes.trim() : '';
+  const values = [...selected, ...(other ? [`Other: ${other}`] : [])];
+  const main = values.length > 0 ? values.join(', ') : '(no answer)';
+
+  return notes ? `${main} (notes: ${notes})` : main;
+};
+
+const formatToolInteractionUserMessage = (
+  identifier: string | undefined,
+  response: Record<string, unknown>,
+): string => {
+  if (identifier === ClarifyIdentifier && isRecord(response.answers)) {
+    const formatted = Object.entries(response.answers)
+      .map(([, value]) => {
+        if (!isRecord(value)) return;
+
+        const question = typeof value.question === 'string' ? value.question : undefined;
+        if (!question) return;
+
+        return `${question}\nAnswer: ${formatClarifyAnswer(value)}`;
+      })
+      .filter((line): line is string => !!line)
+      .join('\n\n');
+
+    if (formatted) return formatted;
+  }
+
+  return Object.values(response).join(', ');
+};
+
 export const conversationControl = (set: Setter, get: () => ChatStore, _api?: unknown) =>
   new ConversationControlActionImpl(set, get, _api);
 
@@ -346,7 +393,10 @@ export class ConversationControlActionImpl {
     );
 
     // 2. Create a user message summarizing the response (makes conversation natural)
-    const userMessageContent = Object.values(response).join(', ');
+    const userMessageContent = formatToolInteractionUserMessage(
+      toolMessage.plugin?.identifier,
+      response,
+    );
     const groupId = toolMessage.groupId;
     const userMsg = await this.#get().optimisticCreateMessage(
       {

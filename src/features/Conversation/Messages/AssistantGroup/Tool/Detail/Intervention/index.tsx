@@ -1,5 +1,7 @@
-import { UserInteractionIdentifier } from '@lobechat/builtin-tool-user-interaction';
-import { getBuiltinIntervention } from '@lobechat/builtin-tools/interventions';
+import {
+  getBuiltinIntervention,
+  isCustomBuiltinInteraction,
+} from '@lobechat/builtin-tools/interventions';
 import { safeParseJSON } from '@lobechat/utils';
 import { Flexbox } from '@lobehub/ui';
 import { memo, Suspense, useCallback, useMemo, useRef, useState } from 'react';
@@ -88,7 +90,7 @@ const Intervention = memo<InterventionProps>(
 
     const parsedArgs = useMemo(() => safeParseJSON(requestArgs || '') ?? {}, [requestArgs]);
 
-    const isCustomInteraction = identifier === UserInteractionIdentifier;
+    const isCustomInteraction = isCustomBuiltinInteraction(identifier);
 
     const submitToolInteraction = useConversationStore((s) => s.submitToolInteraction);
     const skipToolInteraction = useConversationStore((s) => s.skipToolInteraction);

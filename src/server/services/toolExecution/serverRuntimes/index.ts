@@ -11,6 +11,7 @@ import { activatorRuntime } from './activator';
 import { agentDocumentsRuntime } from './agentDocuments';
 import { briefRuntime } from './brief';
 import { calculatorRuntime } from './calculator';
+import { clarifyRuntime } from './clarify';
 import { cloudSandboxRuntime } from './cloudSandbox';
 import { credsRuntime } from './creds';
 import { cronRuntime } from './cron';
@@ -48,6 +49,7 @@ registerRuntimes([
   webBrowsingRuntime,
   cloudSandboxRuntime,
   calculatorRuntime,
+  clarifyRuntime,
   agentDocumentsRuntime,
   notebookRuntime,
   skillStoreRuntime,

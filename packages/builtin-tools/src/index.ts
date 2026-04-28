@@ -4,6 +4,7 @@ import { AgentDocumentsManifest } from '@lobechat/builtin-tool-agent-documents';
 import { AgentManagementManifest } from '@lobechat/builtin-tool-agent-management';
 import { BriefManifest } from '@lobechat/builtin-tool-brief';
 import { CalculatorManifest } from '@lobechat/builtin-tool-calculator';
+import { ClarifyManifest } from '@lobechat/builtin-tool-clarify';
 import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
 import { CredsManifest } from '@lobechat/builtin-tool-creds';
 import { CronManifest } from '@lobechat/builtin-tool-cron';
@@ -94,6 +95,13 @@ export const builtinTools: LobeBuiltinTool[] = [
     hidden: true,
     identifier: LobeActivatorManifest.identifier,
     manifest: LobeActivatorManifest,
+    type: 'builtin',
+  },
+  {
+    discoverable: false,
+    hidden: true,
+    identifier: ClarifyManifest.identifier,
+    manifest: ClarifyManifest,
     type: 'builtin',
   },
   {

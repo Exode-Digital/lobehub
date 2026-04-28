@@ -2,6 +2,7 @@ import {
   AgentBuilderInterventions,
   AgentBuilderManifest,
 } from '@lobechat/builtin-tool-agent-builder/client';
+import { ClarifyIdentifier, ClarifyInterventions } from '@lobechat/builtin-tool-clarify/client';
 import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
 import { CloudSandboxInterventions } from '@lobechat/builtin-tool-cloud-sandbox/client';
 import {
@@ -35,6 +36,7 @@ import { type BuiltinIntervention } from '@lobechat/types';
 export const BuiltinToolInterventions: Record<string, Record<string, any>> = {
   [AgentBuilderManifest.identifier]: AgentBuilderInterventions,
   [CloudSandboxManifest.identifier]: CloudSandboxInterventions,
+  [ClarifyIdentifier]: ClarifyInterventions,
   [GroupManagementManifest.identifier]: GroupManagementInterventions,
   [GTDManifest.identifier]: GTDInterventions,
   [LocalSystemIdentifier]: LocalSystemInterventions,
@@ -78,3 +80,11 @@ export const getBuiltinIntervention = (
 
   return toolset[apiName];
 };
+
+export const CustomBuiltinInteractionIdentifiers = new Set<string>([
+  ClarifyIdentifier,
+  UserInteractionIdentifier,
+]);
+
+export const isCustomBuiltinInteraction = (identifier?: string): boolean =>
+  !!identifier && CustomBuiltinInteractionIdentifiers.has(identifier);

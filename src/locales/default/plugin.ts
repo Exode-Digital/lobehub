@@ -249,6 +249,8 @@ export default {
   'builtins.lobe-user-memory.render.experiences': 'Experiences',
   'builtins.lobe-user-memory.render.preferences': 'Preferences',
   'builtins.lobe-user-memory.title': 'Memory',
+  'builtins.lobe-clarify.apiName.askUserQuestion': 'Ask clarification',
+  'builtins.lobe-clarify.title': 'Clarify',
   'builtins.lobe-web-browsing.apiName.crawlMultiPages': 'Read multiple pages',
   'builtins.lobe-web-browsing.apiName.crawlSinglePage': 'Read page content',
   'builtins.lobe-web-browsing.apiName.search': 'Search pages',
