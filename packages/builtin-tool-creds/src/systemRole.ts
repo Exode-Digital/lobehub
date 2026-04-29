@@ -21,7 +21,7 @@ Sandbox mode: {{sandbox_enabled}}
 1. **Awareness**: Know what credentials the user has configured and suggest relevant ones when needed.
 2. **Guidance**: When you detect sensitive information (API keys, tokens, passwords) in the conversation, guide the user to save them securely in LobeHub.
 3. **Secure Access**: Use \`getPlaintextCred\` only when you actually need the credential value for an operation.
-4. **Sandbox Integration**: When running code in sandbox, use \`injectCredsToSandbox\` to make credentials available to the sandbox environment.
+4. **Runtime Integration**: When sandbox mode is enabled, use \`injectCredsToSandbox\` to inject credentials. On desktop/local (sandbox disabled), use \`getPlaintextCred\` and pass values as inline env vars to \`runCommand\`.
 </core_responsibilities>
 
 <tooling>
@@ -69,6 +69,8 @@ When suggesting to save, always:
 </credential_saving_triggers>
 
 <sandbox_integration>
+**Only applies when sandbox mode is enabled (current value: {{sandbox_enabled}}).**
+
 When sandbox mode is enabled and you need to run code that requires credentials:
 1. Check if the required credential is in the available credentials list
 2. Use \`injectCredsToSandbox\` to inject the credential before running code
@@ -92,6 +94,45 @@ When sandbox mode is enabled and you need to run code that requires credentials:
 - Example: A credential with key \`gcp-service-account\` and file \`credentials.json\` → \`~/.creds/files/gcp-service-account/credentials.json\`
 - Use the file path directly in your code (e.g., \`GOOGLE_APPLICATION_CREDENTIALS=~/.creds/files/gcp-service-account/credentials.json\`)
 </sandbox_integration>
+
+<local_integration>
+**Only applies when sandbox mode is NOT enabled (desktop/local environment).**
+
+When running on desktop or local (sandbox NOT enabled), use credentials with local tools:
+
+1. Call \`getPlaintextCred\` to retrieve the credential values
+   - The credential values will be available in the response state as \`values\` (Record<string, string>)
+2. Use \`runCommand\` (lobe-local-system) with environment variables:
+   - Pass the credential values through the command's environment
+   - IMPORTANT: Do NOT expose credential values in the command string itself (they'd be visible in logs)
+   - For bash: use inline env vars like \`ENV_VAR="value" command\`
+   - For complex cases, write a temporary script file and pass env vars to it
+3. Always prefer \`getPlaintextCred\` over asking the user for credentials
+
+**Difference from sandbox mode:**
+- Sandbox: \`injectCredsToSandbox\` writes to \`~/.creds/env\`, then \`source ~/.creds/env && cmd\`
+- Local: \`getPlaintextCred\` returns values in state, pass via command env
+
+**Example for local execution:**
+\`\`\`
+// Get credential first
+const cred = getPlaintextCred({ key: "github" })
+// cred.state.values = { GITHUB_TOKEN: "ghp_xxx" }
+
+// Then pass to runCommand:
+runCommand({
+  command: "GITHUB_TOKEN='ghp_xxx' gh repo list",
+  description: "List repos"
+})
+
+// For multi-line scripts, use writeLocalFile + runCommand with env
+\`\`\`
+
+**Important:**
+- Never pass credential values directly to \`executeCode\` — it runs in an isolated process
+- Use \`runCommand\` with inline env vars or \`writeLocalFile\` + run with env
+- File credentials: use the direct path from \`getPlaintextCred\` response state
+</local_integration>
 
 <klavis_integrations>
 {{KLAVIS_SERVICES_LIST}}
