@@ -93,6 +93,9 @@ const BUSINESS_CONST_MODULE_ID = '@lobechat/business-const';
 const CLOUD_BUSINESS_CONST_MODULE_ID = '@cloud/business-const';
 const DYNAMIC_BUSINESS_CONST_QUERY = '?lobe-cloud-desktop-business-const';
 
+const createBusinessFeaturesBootstrapScript = () =>
+  `globalThis[${JSON.stringify(CLOUD_DESKTOP_BUSINESS_FEATURES_FLAG)}] = true;`;
+
 const replaceBusinessFlagExport = (code: string, name: string, initializer: string) => {
   const pattern = new RegExp(`export\\s+(?:const|let|var)\\s+${name}\\s*=\\s*[\\s\\S]*?;`);
 
@@ -106,7 +109,7 @@ const injectDynamicBusinessFeatureFlag = (code: string) => {
   const businessFlag = replaceBusinessFlagExport(
     code,
     'ENABLE_BUSINESS_FEATURES',
-    `Boolean(globalThis['${CLOUD_DESKTOP_BUSINESS_FEATURES_FLAG}'])`,
+    `Boolean(globalThis['${CLOUD_DESKTOP_BUSINESS_FEATURES_FLAG}'] ?? true)`,
   );
   const topicLinkFlag = replaceBusinessFlagExport(
     businessFlag.code,
@@ -138,6 +141,7 @@ const __lobeCloudDesktopExistingDescriptor = Object.getOwnPropertyDescriptor(
 const __lobeCloudDesktopInitialValue = __lobeCloudDesktopExistingDescriptor?.get
   ? __lobeCloudDesktopExistingDescriptor.get.call(globalThis)
   : globalThis[__lobeCloudDesktopBusinessFeaturesFlagKey];
+const __lobeCloudDesktopDefaultValue = ENABLE_BUSINESS_FEATURES;
 
 Object.defineProperty(globalThis, __lobeCloudDesktopBusinessFeaturesFlagKey, {
   configurable: true,
@@ -149,7 +153,9 @@ Object.defineProperty(globalThis, __lobeCloudDesktopBusinessFeaturesFlagKey, {
   },
 });
 
-__lobeCloudDesktopApplyBusinessFeaturesFlag(__lobeCloudDesktopInitialValue);
+__lobeCloudDesktopApplyBusinessFeaturesFlag(
+  __lobeCloudDesktopInitialValue ?? __lobeCloudDesktopDefaultValue,
+);
 `;
 };
 
@@ -173,6 +179,15 @@ function cloudDesktopBusinessConstPlugin(): PluginOption {
       return injectDynamicBusinessFeatureFlag(readFileSync(sourcePath, 'utf8'));
     },
     name: 'lobe-cloud-desktop-business-const',
+    transformIndexHtml() {
+      return [
+        {
+          children: createBusinessFeaturesBootstrapScript(),
+          injectTo: 'head-prepend',
+          tag: 'script',
+        },
+      ];
+    },
   };
 }
 
