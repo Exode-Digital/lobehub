@@ -17,7 +17,7 @@ export default {
 
   'card.templateTag': 'Template',
 
-  'section.title': 'Try these scheduled tasks',
+  'section.title': 'Try these tasks',
 
   // ===== content-creation =====
   'daily-topic-pick.title': 'Daily topic radar',

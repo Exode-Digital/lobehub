@@ -60,7 +60,7 @@ vi.mock('react-i18next', () => ({
           'taskList.empty': 'No tasks yet',
         },
         taskTemplate: {
-          'section.title': 'Try these scheduled tasks',
+          'section.title': 'Try these tasks',
         },
       };
 
@@ -143,7 +143,7 @@ describe('TaskList recommendations empty state', () => {
     render(<TaskList options={DEFAULT_TASK_LIST_VIEW_OPTIONS} />);
 
     expect(screen.getByText('No tasks yet')).toBeInTheDocument();
-    expect(screen.getByText('Try these scheduled tasks')).toBeInTheDocument();
+    expect(screen.getByText('Try these tasks')).toBeInTheDocument();
     expect(screen.getByTestId('task-template-recommendations')).toHaveTextContent('cards');
     expect(mocks.useTaskTemplateRecommendationsUI).toHaveBeenCalledWith({ enabled: true });
   });
