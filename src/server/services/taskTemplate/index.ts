@@ -10,7 +10,7 @@ import { TASK_TEMPLATE_FALLBACK_CATEGORIES, taskTemplates } from '@lobechat/cons
 import { klavisEnv } from '@/config/klavis';
 import { appEnv } from '@/envs/app';
 
-export const RECOMMEND_COUNT = 3;
+export const RECOMMEND_COUNT = 10;
 
 export const ENABLED_SKILL_SOURCES: ReadonlySet<TaskTemplateSkillSource> = (() => {
   const sources = new Set<TaskTemplateSkillSource>();

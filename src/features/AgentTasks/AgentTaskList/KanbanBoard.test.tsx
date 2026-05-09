@@ -35,14 +35,20 @@ vi.mock('@lobehub/ui', () => {
   const Div = ({ children, ...props }: any) => <div {...props}>{children}</div>;
 
   return {
+    Block: Div,
     Center: Div,
     Empty: ({ description }: { description: string }) => <div>{description}</div>,
     Flexbox: Div,
+    Icon: () => <span data-testid="icon" />,
     Text: Div,
   };
 });
 
 vi.mock('antd-style', () => ({
+  cssVar: {
+    colorFillSecondary: '#222',
+    colorTextSecondary: '#999',
+  },
   createStaticStyles: () => ({
     board: 'board',
   }),
@@ -56,6 +62,7 @@ vi.mock('react-i18next', () => ({
           'taskList.empty': 'No tasks yet',
         },
         taskTemplate: {
+          'section.emptyTitle': 'No tasks yet. Try these tasks',
           'section.title': 'Try these tasks',
         },
       };
@@ -164,8 +171,7 @@ describe('KanbanBoard recommendations empty state', () => {
 
     render(<KanbanBoard />);
 
-    expect(screen.getByText('No tasks yet')).toBeInTheDocument();
-    expect(screen.getByText('Try these tasks')).toBeInTheDocument();
+    expect(screen.getByText('No tasks yet. Try these tasks')).toBeInTheDocument();
     expect(screen.getByTestId('task-template-recommendations')).toHaveTextContent('cards');
     expect(mocks.useTaskTemplateRecommendationsUI).toHaveBeenCalledWith({ enabled: true });
   });

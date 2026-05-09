@@ -17,13 +17,17 @@ const UTC_DAY_1 = new Date('2026-04-24T10:00:00Z');
 const UTC_DAY_2 = new Date('2026-04-25T10:00:00Z');
 
 describe('TaskTemplateService.listDailyRecommend', () => {
-  it('returns RECOMMEND_COUNT items when user has matching interests', async () => {
+  it('returns 10 items when user has matching interests', async () => {
     const service = new TaskTemplateService('user-1');
     const picked = await service.listDailyRecommend(['coding'], { now: UTC_DAY_1 });
 
-    expect(picked).toHaveLength(RECOMMEND_COUNT);
-    expect(picked.every((p) => p.source === 'matched')).toBe(true);
-    const codingMatches = taskTemplates.filter((t) => t.interests.includes('coding'));
+    expect(RECOMMEND_COUNT).toBe(10);
+    expect(picked).toHaveLength(10);
+    const codingMatches = taskTemplates.filter(
+      (t) => t.interests.includes('coding') && isTemplateSkillSourceEligible(t),
+    );
+    const matched = picked.filter((p) => p.source === 'matched');
+    expect(matched).toHaveLength(Math.min(RECOMMEND_COUNT, codingMatches.length));
     expect(picked.some((p) => codingMatches.some((m) => m.id === p.id))).toBe(true);
   });
 
@@ -63,13 +67,20 @@ describe('TaskTemplateService.listDailyRecommend', () => {
   it('falls back to fallback categories when user has no interests', async () => {
     const service = new TaskTemplateService('user-1');
     const picked = await service.listDailyRecommend([], { now: UTC_DAY_1 });
+    const fallbackCategoryCount = taskTemplates.filter(
+      (t) =>
+        TASK_TEMPLATE_FALLBACK_CATEGORIES.includes(t.category) && isTemplateSkillSourceEligible(t),
+    ).length;
 
     expect(picked).toHaveLength(RECOMMEND_COUNT);
-    for (const p of picked) {
+    for (const p of picked.slice(0, fallbackCategoryCount)) {
       expect(taskTemplates.some((t) => t.id === p.id)).toBe(true);
       expect(p.source).toBe('fallback');
       expect(p.fallbackPool).toBe('preferred_category');
     }
+    expect(
+      picked.slice(fallbackCategoryCount).every((p) => p.fallbackPool === 'all_candidates'),
+    ).toBe(true);
   });
 
   it('marks all-candidate fallback when preferred fallback categories are exhausted', async () => {
@@ -98,7 +109,7 @@ describe('TaskTemplateService.listDailyRecommend', () => {
 
   it('unrecognized interest strings fall back to non-matched pool', async () => {
     const service = new TaskTemplateService('user-1');
-    // Freeform custom input won't match any template's interests — should still return 3 picks
+    // Freeform custom input won't match any template's interests — should still return 10 picks.
     const picked = await service.listDailyRecommend(['my special hobby'], { now: UTC_DAY_1 });
 
     expect(picked).toHaveLength(RECOMMEND_COUNT);

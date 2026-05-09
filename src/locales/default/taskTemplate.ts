@@ -17,6 +17,7 @@ export default {
 
   'card.templateTag': 'Template',
 
+  'section.emptyTitle': 'No tasks yet. Try these tasks',
   'section.title': 'Try these tasks',
 
   // ===== content-creation =====
