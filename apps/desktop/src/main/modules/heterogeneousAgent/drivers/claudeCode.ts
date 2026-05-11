@@ -1,4 +1,4 @@
-import { CLAUDE_CODE_BASE_ARGS } from '@lobechat/heterogeneous-agents/spawn';
+import { CLAUDE_CODE_BASE_ARGS, CLAUDE_CODE_SPAWN_ENV } from '@lobechat/heterogeneous-agents/spawn';
 
 import type { HeterogeneousAgentBuildPlanParams, HeterogeneousAgentDriver } from '../types';
 
@@ -34,6 +34,7 @@ export const claudeCodeDriver: HeterogeneousAgentDriver = {
         ...(resumeSessionId ? ['--resume', resumeSessionId] : []),
         ...args,
       ],
+      env: { ...CLAUDE_CODE_SPAWN_ENV },
       stdinPayload,
     };
   },

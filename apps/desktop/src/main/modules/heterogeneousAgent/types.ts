@@ -5,6 +5,12 @@ export interface HeterogeneousAgentImageAttachment {
 
 export interface HeterogeneousAgentBuildPlan {
   args: string[];
+  /**
+   * Extra environment variables the controller MUST merge into the spawned
+   * child's env. Used by Claude Code to set `CLAUDE_CODE_ENTRYPOINT=sdk-ts`,
+   * which unlocks non-`-p` stream-json + the control protocol side channel.
+   */
+  env?: Record<string, string>;
   stdinPayload?: string;
 }
 

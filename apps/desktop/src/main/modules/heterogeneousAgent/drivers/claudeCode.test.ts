@@ -27,6 +27,15 @@ describe('claudeCodeDriver', () => {
     expect(args).not.toContain('--mcp-config');
   });
 
+  it('omits -p and returns the sdk-ts entrypoint env', async () => {
+    // No `-p`: `CLAUDE_CODE_ENTRYPOINT=sdk-ts` unlocks non-`-p` stream-json
+    // and opens the control protocol channel. The controller merges this env
+    // into the spawned child's env before calling spawn().
+    const plan = await claudeCodeDriver.buildSpawnPlan(buildParams());
+    expect(plan.args).not.toContain('-p');
+    expect(plan.env?.CLAUDE_CODE_ENTRYPOINT).toBe('sdk-ts');
+  });
+
   it('appends --mcp-config <path> when mcpConfigPath is provided', async () => {
     const { args } = await claudeCodeDriver.buildSpawnPlan(
       buildParams({ mcpConfigPath: '/tmp/lobe-cc-mcp-op-1.json' }),

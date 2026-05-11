@@ -106,10 +106,13 @@ describe('spawnAgent', () => {
     expect(call.args).toContain('--input-format');
     expect(call.args).toContain('--output-format');
     expect(call.args.filter((a) => a === 'stream-json')).toHaveLength(2);
-    expect(call.args).toContain('-p');
-    // CC's built-in interactive Q&A is disabled at every spawn site so the
-    // model degrades to plain-text questioning instead of stalling on a
-    // synthetic "Answer questions?" tool_result.
+    // No `-p`: `CLAUDE_CODE_ENTRYPOINT=sdk-ts` unlocks non-`-p` stream-json
+    // and opens the control protocol channel.
+    expect(call.args).not.toContain('-p');
+    expect(call.options.env?.CLAUDE_CODE_ENTRYPOINT).toBe('sdk-ts');
+    // CC's built-in AskUserQuestion stays disabled — LobeHub's intervention UI
+    // consumes the MCP-backed replacement, and surfacing both names lets the
+    // model pick the broken built-in.
     const disallowedIdx = call.args.indexOf('--disallowedTools');
     expect(disallowedIdx).toBeGreaterThan(-1);
     expect(call.args[disallowedIdx + 1]).toBe('AskUserQuestion');

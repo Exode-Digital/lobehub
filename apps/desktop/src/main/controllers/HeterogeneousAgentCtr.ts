@@ -885,7 +885,11 @@ export default class HeterogeneousAgentCtr extends ControllerModule {
       const proc = spawn(session.command, cliArgs, {
         cwd,
         detached: process.platform !== 'win32',
-        env: { ...process.env, ...proxyEnv, ...session.env },
+        // `spawnPlan.env` carries driver-mandated overrides (e.g. Claude Code
+        // sets `CLAUDE_CODE_ENTRYPOINT=sdk-ts` to unlock non-`-p` stream-json
+        // + control protocol). `session.env` still wins so the user can
+        // override anything via per-session config.
+        env: { ...process.env, ...proxyEnv, ...spawnPlan.env, ...session.env },
         stdio: [useStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       });
 

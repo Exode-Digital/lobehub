@@ -96,14 +96,20 @@ export interface SpawnAgentHandle {
  * sandbox CLI may run as root and skip partials — so they're composed on top
  * of this base.
  *
- * `AskUserQuestion` is disabled because CC's CLI self-injects an
- * `is_error: "Answer questions?"` tool_result in `-p` mode before the host
- * can surface the questions, so the model falls back to plain-text prompting
- * anyway. Remove this once a local MCP-backed replacement is wired to
- * LobeHub's intervention UI.
+ * No `-p`: the CLI's `--help` claims stream-json input "only works with --print",
+ * but `CLAUDE_CODE_ENTRYPOINT=sdk-ts` (set in `CLAUDE_CODE_SPAWN_ENV` below)
+ * unlocks non-`-p` stream-json and enables the control protocol side channel
+ * (can_use_tool / hook_callback / interrupt / set_model / set_permission_mode
+ * / get_context_usage / rewind_files / mcp_message). Keep `-p` off so future
+ * work can land AskUserQuestion native + priority queue semantics without
+ * re-flipping the entry mode.
+ *
+ * `AskUserQuestion` stays disabled: the LobeHub intervention UI consumes the
+ * MCP-backed replacement (`lobe_cc` / LOBE-8725), and surfacing both names to
+ * the model would let it pick the broken built-in. Remove this once the
+ * MCP bridge is fully replaced by the control-protocol-native flow.
  */
 export const CLAUDE_CODE_BASE_ARGS = [
-  '-p',
   '--input-format',
   'stream-json',
   '--output-format',
@@ -112,6 +118,18 @@ export const CLAUDE_CODE_BASE_ARGS = [
   '--disallowedTools',
   'AskUserQuestion',
 ] as const;
+
+/**
+ * Environment overrides every Claude Code spawn site MUST merge into the
+ * child's env. `CLAUDE_CODE_ENTRYPOINT=sdk-ts` is an undocumented switch that
+ * the official `@anthropic-ai/claude-agent-sdk` sets before spawning — it
+ * tells the CLI to skip the `--print`-only check on stream-json IO and opens
+ * the control protocol channel. Without it, `CLAUDE_CODE_BASE_ARGS` (no `-p`)
+ * causes the CLI to reject stream-json input immediately.
+ */
+export const CLAUDE_CODE_SPAWN_ENV = {
+  CLAUDE_CODE_ENTRYPOINT: 'sdk-ts',
+} as const;
 
 // bypassPermissions is blocked when running as root (e.g. cloud sandbox).
 // Fall back to acceptEdits + pre-approved tools so the agent can still run
@@ -230,10 +248,11 @@ export const spawnAgent = async (options: SpawnAgentOptions): Promise<SpawnAgent
   });
   const cwd = options.cwd || process.cwd();
 
+  const agentEnv = options.agentType === 'claude-code' ? CLAUDE_CODE_SPAWN_ENV : undefined;
   const proc = spawn(command, args, {
     cwd,
     detached: process.platform !== 'win32',
-    env: { ...process.env, ...options.env },
+    env: { ...process.env, ...agentEnv, ...options.env },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
