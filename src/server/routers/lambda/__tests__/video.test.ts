@@ -285,4 +285,143 @@ describe('videoRouter', () => {
       });
     });
   });
+
+  describe('createVideo - reference image URL normalization', () => {
+    it('should rewrite imageUrls array to public URLs before calling provider', async () => {
+      const { mockUpdate: _unused } = setupMocks();
+
+      // FileService: getKeyFromFullUrl extracts key from proxy URL,
+      // getFullFileUrl maps key -> public CDN URL.
+      const getKeyFromFullUrl = vi.fn(async (url: string) => {
+        const match = url.match(/\/f\/([^/?#]+)/);
+        return match ? `uploads/${match[1]}.png` : null;
+      });
+      const getFullFileUrl = vi.fn(async (key: string) =>
+        key.startsWith('http') ? key : `https://cdn.example.com/${key}`,
+      );
+      vi.mocked(FileService).mockImplementation(
+        () => ({ getFullFileUrl, getKeyFromFullUrl }) as any,
+      );
+
+      mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-img', useWebhook: true });
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await caller.createVideo({
+        ...defaultInput,
+        params: {
+          ...defaultInput.params,
+          imageUrls: [
+            'https://self-host.example:8443/f/file_abc',
+            'https://self-host.example:8443/f/file_def',
+          ],
+        },
+      });
+
+      // 1) Provider receives publicly-reachable URLs, NOT the proxy URLs.
+      expect(mockCreateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            imageUrls: [
+              'https://cdn.example.com/uploads/file_abc.png',
+              'https://cdn.example.com/uploads/file_def.png',
+            ],
+          }),
+        }),
+        expect.any(Object),
+      );
+
+      // 2) Key extraction was attempted for every reference image.
+      expect(getKeyFromFullUrl).toHaveBeenCalledTimes(2);
+      // 3) Public URL resolution happens unconditionally (not gated on NODE_ENV).
+      expect(getFullFileUrl).toHaveBeenCalledWith('uploads/file_abc.png');
+      expect(getFullFileUrl).toHaveBeenCalledWith('uploads/file_def.png');
+    });
+
+    it('should fall back to original URL when key extraction fails for an element', async () => {
+      setupMocks();
+
+      const getKeyFromFullUrl = vi.fn(async (url: string) =>
+        url.includes('known') ? 'uploads/known.png' : null,
+      );
+      const getFullFileUrl = vi.fn(async (key: string) =>
+        key.startsWith('http') ? key : `https://cdn.example.com/${key}`,
+      );
+      vi.mocked(FileService).mockImplementation(
+        () => ({ getFullFileUrl, getKeyFromFullUrl }) as any,
+      );
+
+      mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-mix', useWebhook: true });
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await caller.createVideo({
+        ...defaultInput,
+        params: {
+          ...defaultInput.params,
+          imageUrls: ['https://ex.com/known.png', 'https://ex.com/unknown.png'],
+        },
+      });
+
+      // Provider call must not contain undefined entries; unresolved
+      // elements fall back to the original URL so we do not silently
+      // lose reference images.
+      const call = mockCreateVideo.mock.calls[0][0];
+      expect(call.params.imageUrls).toHaveLength(2);
+      expect(call.params.imageUrls[1]).toBe('https://ex.com/unknown.png');
+      // And database config keeps original URLs on partial failure.
+    });
+
+    it('should rewrite imageUrl and endImageUrl to public URLs', async () => {
+      setupMocks();
+
+      const getKeyFromFullUrl = vi.fn(async (url: string) => {
+        const m = url.match(/\/f\/([^/?#]+)/);
+        return m ? `uploads/${m[1]}.png` : null;
+      });
+      const getFullFileUrl = vi.fn(async (key: string) => `https://cdn.example.com/${key}`);
+      vi.mocked(FileService).mockImplementation(
+        () => ({ getFullFileUrl, getKeyFromFullUrl }) as any,
+      );
+
+      mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-frames', useWebhook: true });
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await caller.createVideo({
+        ...defaultInput,
+        params: {
+          ...defaultInput.params,
+          imageUrl: 'https://self-host.example:8443/f/first_frame',
+          endImageUrl: 'https://self-host.example:8443/f/last_frame',
+        },
+      });
+
+      expect(mockCreateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            imageUrl: 'https://cdn.example.com/uploads/first_frame.png',
+            endImageUrl: 'https://cdn.example.com/uploads/last_frame.png',
+          }),
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('should not call URL resolver when no reference images are provided', async () => {
+      setupMocks();
+
+      const getKeyFromFullUrl = vi.fn();
+      const getFullFileUrl = vi.fn();
+      vi.mocked(FileService).mockImplementation(
+        () => ({ getFullFileUrl, getKeyFromFullUrl }) as any,
+      );
+
+      mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-noop', useWebhook: true });
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await caller.createVideo(defaultInput);
+
+      expect(getKeyFromFullUrl).not.toHaveBeenCalled();
+      expect(getFullFileUrl).not.toHaveBeenCalled();
+    });
+  });
+
 });
