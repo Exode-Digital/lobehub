@@ -35,6 +35,7 @@ export const CredsApiName = {
 export type CredsApiNameType = (typeof CredsApiName)[keyof typeof CredsApiName];
 
 export const LOBEHUB_OAUTH_PROVIDER_IDS = [
+  'canva',
   'github',
   'linear',
   'microsoft',
@@ -61,7 +62,7 @@ export interface GetPlaintextCredParams {
 
 export interface InitiateOAuthConnectParams {
   /**
-   * The OAuth provider ID (e.g., 'linear', 'microsoft', 'notion', 'twitter')
+   * The OAuth provider ID (e.g., 'canva', 'linear', 'microsoft', 'notion', 'twitter')
    */
   provider: LobehubOAuthProviderId;
 }
