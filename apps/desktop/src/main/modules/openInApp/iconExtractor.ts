@@ -112,19 +112,25 @@ export const extractAppIcon = async (
 };
 
 /**
- * Resolve icons in parallel for a list of installed AppIds. Apps with no
- * extractable icon are simply absent from the returned map.
+ * Resolve icons for a list of installed AppIds. Runs **sequentially** because
+ * macOS's `NSWorkspace iconForContentType:` (which Electron's `getFileIcon`
+ * delegates to) is not safe under heavy parallel load on macOS 26+ — running
+ * 11 calls via Promise.all crashed the renderer with EXC_BREAKPOINT inside
+ * `ISIconManager findOrRegisterIcon:`. Sequential is slower (~tens of ms per
+ * app) but stable. Cached for the session, so the cost is paid once.
  */
 export const extractAllIcons = async (
   installedIds: OpenInAppId[],
   platform: NodeJS.Platform = process.platform,
 ): Promise<Map<OpenInAppId, string>> => {
-  const results = await Promise.all(
-    installedIds.map(async (id) => [id, await extractAppIcon(id, platform)] as const),
-  );
   const map = new Map<OpenInAppId, string>();
-  for (const [id, icon] of results) {
-    if (icon) map.set(id, icon);
+  for (const id of installedIds) {
+    try {
+      const icon = await extractAppIcon(id, platform);
+      if (icon) map.set(id, icon);
+    } catch (error) {
+      logger.debug(`extractAllIcons: skipping ${id} after error: ${(error as Error).message}`);
+    }
   }
   return map;
 };
