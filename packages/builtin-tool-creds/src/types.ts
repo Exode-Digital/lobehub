@@ -39,6 +39,7 @@ export const LOBEHUB_OAUTH_PROVIDER_IDS = [
   'linear',
   'microsoft',
   'notion',
+  'posthog',
   'twitter',
 ] as const;
 
@@ -61,7 +62,7 @@ export interface GetPlaintextCredParams {
 
 export interface InitiateOAuthConnectParams {
   /**
-   * The OAuth provider ID (e.g., 'linear', 'microsoft', 'notion', 'twitter')
+   * The OAuth provider ID (e.g., 'linear', 'microsoft', 'notion', 'posthog', 'twitter')
    */
   provider: LobehubOAuthProviderId;
 }
