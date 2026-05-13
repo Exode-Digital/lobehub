@@ -1,7 +1,8 @@
 'use client';
 
 import type { ProjectFileIndexEntry } from '@lobechat/electron-client-ipc';
-import { ActionIcon, Center, Empty, Flexbox } from '@lobehub/ui';
+import { ActionIcon, Center, copyToClipboard, Empty, Flexbox } from '@lobehub/ui';
+import type { MenuProps } from 'antd';
 import { message } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { FileIcon, RefreshCwIcon } from 'lucide-react';
@@ -9,11 +10,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
-import { ExplorerTree, type ExplorerTreeNode } from '@/features/ExplorerTree';
+import type { ExplorerTreeNode } from '@/features/ExplorerTree';
+import { ExplorerTree, FOLDER_ICON_CSS } from '@/features/ExplorerTree';
 import type { ExplorerTreeHandle } from '@/features/ExplorerTree/types';
+import { localFileService } from '@/services/electron/localFileService';
 import { useChatStore } from '@/store/chat';
 import { useGlobalStore } from '@/store/global';
 
+import { buildGitStatusEntries, useGitWorkingTreeFiles } from './useGitWorkingTreeFiles';
 import { useProjectFiles } from './useProjectFiles';
 
 interface FilesProps {
@@ -21,6 +25,21 @@ interface FilesProps {
 }
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
+  tree: css`
+    --trees-bg-override: transparent;
+    --trees-border-color-override: transparent;
+    --trees-selected-bg-override: ${cssVar.colorFillSecondary};
+    --trees-bg-muted-override: ${cssVar.colorFillTertiary};
+    --trees-fg-override: ${cssVar.colorText};
+    --trees-fg-muted-override: ${cssVar.colorTextSecondary};
+    --trees-accent-override: ${cssVar.colorPrimary};
+    --trees-padding-inline-override: 0px;
+    --trees-font-size-override: 12px;
+    --trees-border-radius-override: 6px;
+
+    flex: 1;
+    min-height: 0;
+  `,
   subheader: css`
     display: flex;
     flex-shrink: 0;
@@ -37,53 +56,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-variant-numeric: tabular-nums;
     color: ${cssVar.colorTextTertiary};
   `,
-  tree: css`
-    --trees-bg-override: transparent;
-    --trees-border-color-override: transparent;
-    --trees-selected-bg-override: ${cssVar.colorFillSecondary};
-    --trees-bg-muted-override: ${cssVar.colorFillTertiary};
-    --trees-fg-override: ${cssVar.colorText};
-    --trees-fg-muted-override: ${cssVar.colorTextSecondary};
-    --trees-accent-override: ${cssVar.colorPrimary};
-    --trees-padding-inline-override: 0px;
-    --trees-font-size-override: 12px;
-    --trees-border-radius-override: 6px;
-
-    flex: 1;
-    min-height: 0;
-  `,
 }));
-
-const folderClosedSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/></svg>`;
-const folderOpenSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.69.9H18a2 2 0 0 1 2 2v2'/></svg>`;
-
-// PierreFileTree only renders a chevron in [data-item-section="icon"] for
-// directories — there is no built-in folder glyph. Inject one via a ::before
-// pseudo-element on the content cell. The cell wraps a flex truncate
-// container, so the cell itself must become flex (align-items: center) for
-// the inline-block icon and the block-level truncator to share a single row;
-// otherwise the icon renders on its own line above the name.
-const FOLDER_ICON_CSS = `
-  [data-item-type="folder"] [data-item-section="content"] {
-    display: flex;
-    align-items: center;
-  }
-  [data-item-type="folder"] [data-item-section="content"]::before {
-    content: '';
-    flex: 0 0 auto;
-    width: 14px;
-    height: 14px;
-    margin-inline-end: 6px;
-    background-color: currentColor;
-    -webkit-mask: url("data:image/svg+xml;utf8,${folderClosedSvg}") no-repeat center / contain;
-    mask: url("data:image/svg+xml;utf8,${folderClosedSvg}") no-repeat center / contain;
-    opacity: 0.85;
-  }
-  [data-item-type="folder"][aria-expanded="true"] [data-item-section="content"]::before {
-    -webkit-mask-image: url("data:image/svg+xml;utf8,${folderOpenSvg}");
-    mask-image: url("data:image/svg+xml;utf8,${folderOpenSvg}");
-  }
-`;
 
 const stripTrailingSlash = (value: string) => (value.endsWith('/') ? value.slice(0, -1) : value);
 
@@ -126,9 +99,12 @@ const getAncestorIds = (filePath: string): string[] => {
 const Files = memo<FilesProps>(({ workingDirectory }) => {
   const { t } = useTranslation('chat');
   const { data, isLoading, isValidating, mutate } = useProjectFiles(workingDirectory);
+  const { data: gitFiles } = useGitWorkingTreeFiles(workingDirectory, data?.source === 'git');
 
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const nodes = useMemo(() => buildTreeNodes(entries), [entries]);
+  const gitStatus = useMemo(() => buildGitStatusEntries(gitFiles), [gitFiles]);
+  const dirtyFilePaths = useMemo(() => new Set(gitStatus.map((entry) => entry.path)), [gitStatus]);
   // Pre-expand top-level directories so the user sees something useful on first
   // paint without having to click through every folder.
   const defaultExpandedIds = useMemo(
@@ -151,6 +127,7 @@ const Files = memo<FilesProps>(({ workingDirectory }) => {
   const treeRef = useRef<ExplorerTreeHandle>(null);
 
   const revealRequest = useGlobalStore((s) => s.status.workingSidebarRevealRequest);
+  const setWorkingSidebarTab = useGlobalStore((s) => s.setWorkingSidebarTab);
 
   useEffect(() => {
     if (!revealRequest) return;
@@ -177,12 +154,74 @@ const Files = memo<FilesProps>(({ workingDirectory }) => {
 
   const openLocalFile = useChatStore((s) => s.openLocalFile);
 
-  const handleNodeClick = useCallback(
+  const openNode = useCallback(
     (node: ExplorerTreeNode<ProjectFileIndexEntry>) => {
-      if (!node.data || node.isFolder) return;
+      if (!node.data) return;
+      if (node.isFolder) {
+        void localFileService.openLocalFileOrFolder(node.data.path, true);
+        return;
+      }
       openLocalFile({ filePath: node.data.path, workingDirectory });
     },
     [openLocalFile, workingDirectory],
+  );
+
+  const handleNodeClick = useCallback(
+    (node: ExplorerTreeNode<ProjectFileIndexEntry>) => {
+      if (node.isFolder) return;
+      openNode(node);
+    },
+    [openNode],
+  );
+
+  const getContextMenuItems = useCallback(
+    (node: ExplorerTreeNode<ProjectFileIndexEntry>): MenuProps['items'] => {
+      if (!node.data) return [];
+
+      const { path, relativePath } = node.data;
+      const isDirty = dirtyFilePaths.has(relativePath);
+
+      return [
+        {
+          key: 'open',
+          label: t('workingPanel.files.open'),
+          onClick: () => openNode(node),
+        },
+        { key: 'divider-reveal', type: 'divider' as const },
+        {
+          key: 'show-in-system',
+          label: t('workingPanel.files.showInSystem'),
+          onClick: () => void localFileService.openFileFolder(path),
+        },
+        ...(isDirty
+          ? [
+              {
+                key: 'show-in-review',
+                label: t('workingPanel.files.showInReview'),
+                onClick: () => setWorkingSidebarTab('review'),
+              },
+            ]
+          : []),
+        { key: 'divider-copy', type: 'divider' as const },
+        {
+          key: 'copy-absolute-path',
+          label: t('workingPanel.files.copyAbsolutePath'),
+          onClick: async () => {
+            await copyToClipboard(path);
+            message.success(t('workingPanel.review.copied'));
+          },
+        },
+        {
+          key: 'copy-relative-path',
+          label: t('workingPanel.files.copyRelativePath'),
+          onClick: async () => {
+            await copyToClipboard(relativePath);
+            message.success(t('workingPanel.review.copied'));
+          },
+        },
+      ];
+    },
+    [dirtyFilePaths, openNode, setWorkingSidebarTab, t],
   );
 
   const fileCount = data?.totalCount ?? entries.filter((e) => !e.isDirectory).length;
@@ -218,6 +257,8 @@ const Files = memo<FilesProps>(({ workingDirectory }) => {
             iconsColored
             defaultExpandedIds={defaultExpandedIds}
             density="compact"
+            getContextMenuItems={getContextMenuItems}
+            gitStatus={gitStatus}
             iconSet="complete"
             nodes={nodes}
             ref={treeRef}

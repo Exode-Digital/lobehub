@@ -160,6 +160,7 @@ function ExplorerTreeInner<TData>(
         colored: props.iconsColored ?? true,
         set: props.iconSet ?? 'standard',
       },
+      gitStatus: props.gitStatus,
       initialExpandedPaths,
       initialSelectedPaths,
       itemHeight: props.itemHeight,
@@ -225,6 +226,10 @@ function ExplorerTreeInner<TData>(
 
   // Observe selection changes so external consumers see updates without needing to pass a selection listener.
   useFileTreeSelection(model);
+
+  useLayoutEffect(() => {
+    model.setGitStatus(props.gitStatus);
+  }, [model, props.gitStatus]);
 
   // Track expansion by subscribing to mutation events (expansion isn't a mutation — use subscribe).
   // We read expanded paths on demand from the visible rows via getItem; emit when defaultExpanded or nodes changes.

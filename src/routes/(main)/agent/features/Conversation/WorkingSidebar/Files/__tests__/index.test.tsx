@@ -16,10 +16,22 @@ const handleSpies = {
   setExpanded: vi.fn(),
 };
 
+const explorerTreeProps = vi.hoisted(() => ({
+  current: undefined as Record<string, unknown> | undefined,
+}));
+const gitFilesMock = vi.hoisted(() => ({
+  data: {
+    added: ['root.ts'],
+    deleted: ['deleted.ts'],
+    modified: ['src/foo/bar.ts'],
+  },
+}));
+
 // ─── mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('@/features/ExplorerTree', () => {
   const MockExplorerTree = ({ ref, ...props }: { ref?: Ref<unknown>; [key: string]: unknown }) => {
+    explorerTreeProps.current = props;
     useImperativeHandle(ref, () => ({
       focus: handleSpies.focus,
       getSelectedIds: vi.fn(() => []),
@@ -33,8 +45,21 @@ vi.mock('@/features/ExplorerTree', () => {
   MockExplorerTree.displayName = 'MockExplorerTree';
   return {
     ExplorerTree: MockExplorerTree,
+    FOLDER_ICON_CSS: '',
   };
 });
+
+vi.mock('../useGitWorkingTreeFiles', () => ({
+  buildGitStatusEntries: (files?: { added: string[]; deleted: string[]; modified: string[] }) =>
+    files
+      ? [
+          ...files.added.map((path) => ({ path, status: 'added' })),
+          ...files.modified.map((path) => ({ path, status: 'modified' })),
+          ...files.deleted.map((path) => ({ path, status: 'deleted' })),
+        ]
+      : [],
+  useGitWorkingTreeFiles: () => ({ data: gitFilesMock.data }),
+}));
 
 vi.mock('../useProjectFiles', () => ({
   useProjectFiles: () => ({
@@ -86,6 +111,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@lobehub/ui', () => ({
   ActionIcon: ({ onClick }: { onClick?: () => void }) => <button type="button" onClick={onClick} />,
   Center: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  copyToClipboard: vi.fn(),
   Empty: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
@@ -112,6 +138,7 @@ const setReveal = (path: string, nonce: number) => {
 // ─── tests ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+  explorerTreeProps.current = undefined;
   handleSpies.focus.mockClear();
   handleSpies.select.mockClear();
   handleSpies.setExpanded.mockClear();
@@ -127,6 +154,42 @@ afterEach(() => {
 });
 
 describe('Files — reveal request integration', () => {
+  it('passes git working tree status and per-item context menu items into ExplorerTree', () => {
+    render(<Files workingDirectory="/repo" />);
+
+    expect(explorerTreeProps.current?.gitStatus).toEqual([
+      { path: 'root.ts', status: 'added' },
+      { path: 'src/foo/bar.ts', status: 'modified' },
+      { path: 'deleted.ts', status: 'deleted' },
+    ]);
+
+    const nodes = explorerTreeProps.current?.nodes as { id: string }[];
+    const dirtyNode = nodes.find((node) => node.id === 'src/foo/bar.ts');
+    const cleanFolderNode = nodes.find((node) => node.id === 'src/');
+
+    const getContextMenuItems = explorerTreeProps.current?.getContextMenuItems as (
+      node: unknown,
+    ) => { key: string }[];
+
+    expect(getContextMenuItems(dirtyNode).map((item) => item.key)).toEqual([
+      'open',
+      'divider-reveal',
+      'show-in-system',
+      'show-in-review',
+      'divider-copy',
+      'copy-absolute-path',
+      'copy-relative-path',
+    ]);
+    expect(getContextMenuItems(cleanFolderNode).map((item) => item.key)).toEqual([
+      'open',
+      'divider-reveal',
+      'show-in-system',
+      'divider-copy',
+      'copy-absolute-path',
+      'copy-relative-path',
+    ]);
+  });
+
   it('(a) reveals existing path: calls setExpanded with ancestors, then select and focus', async () => {
     render(<Files workingDirectory="/repo" />);
 
