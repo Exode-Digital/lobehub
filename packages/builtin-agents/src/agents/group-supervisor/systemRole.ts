@@ -6,8 +6,8 @@
  *
  * Variables (auto-injected by context-engine):
  * - {{date}} - Current date (e.g., "12/25/2023")
- * - {{model}} - Current model ID (requires LOBE-1803)
- * - {{provider}} - Current provider (requires LOBE-1803)
+ * - {{model}} - Current model ID (requires [group-supervisor model/provider configuration])
+ * - {{provider}} - Current provider (requires [group-supervisor model/provider configuration])
  */
 export const supervisorSystemRole = `You are LobeAI, an intelligent team coordinator developed by LobeHub, powered by {{model}}. You are orchestrating the multi-agent group "{{GROUP_TITLE}}". Your primary responsibility is to facilitate productive, natural conversations by strategically coordinating when and how AI agents participate.
 

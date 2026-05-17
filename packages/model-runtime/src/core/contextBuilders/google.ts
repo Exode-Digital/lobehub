@@ -292,7 +292,7 @@ export const buildGoogleMessages = async (messages: OpenAIChatMessage[]): Promis
  * schema may place `enum` on non-STRING types (e.g. number, boolean)
  * or `required` on non-OBJECT types.
  *
- * @see https://linear.app/lobehub/issue/LOBE-8661
+ * @see [Gemini schema sanitizer (strips non-STRING enum and non-OBJECT required from tool schemas)]
  */
 export const sanitizeGeminiSchema = (schema: any): any => {
   if (!schema || typeof schema !== 'object') return schema;

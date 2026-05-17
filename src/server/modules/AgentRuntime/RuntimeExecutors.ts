@@ -311,7 +311,7 @@ export const createRuntimeExecutors = (
     // Get parentId from payload (parentId or parentMessageId depending on payload type)
     const parentId = llmPayload.parentId || (llmPayload as any).parentMessageId;
 
-    // Parent existence preflight (LOBE-7158 / LOBE-7154):
+ // Parent existence preflight ([fail-fast on tool/assistant persist failures] / [parent-id FK violation during long agent sessions]):
     // If the parent was deleted concurrently (e.g. user deleted topic mid-run),
     // assistant message creation below would hit a PG FK violation AFTER we've
     // already done the LLM call and spent tokens. Check first — fail fast,
@@ -884,8 +884,7 @@ export const createRuntimeExecutors = (
                 // self-reflection signal the model needs to fix its own output.
                 // Sanitization happens later, only at the persist boundaries
                 // (DB write and state.messages push) to protect strict providers
-                // replaying history. See LOBE-7761.
-                const payload = resolvedCalls.map((p) => ({
+                // replaying history.                 const payload = resolvedCalls.map((p) => ({
                   ...p,
                   executor: resolved.executorMap?.[p.identifier],
                   source: resolved.sourceMap[p.identifier],
@@ -1022,8 +1021,7 @@ export const createRuntimeExecutors = (
 
             // Sanitize tool_call `arguments` before persisting to DB so malformed
             // JSON (e.g. Qwen emitting `{, ...}`) can't poison future context
-            // builds and 400 strict providers like NVIDIA NIM. See LOBE-7761.
-            const persistedTools =
+            // builds and 400 strict providers like NVIDIA NIM.             const persistedTools =
               toolsCalling.length > 0
                 ? toolsCalling.map((t) => ({
                     ...t,
@@ -1724,7 +1722,7 @@ export const createRuntimeExecutors = (
       // Finally persist to database. In resumption mode (skipCreateToolMessage),
       // the pending tool message already exists from request_human_approve, so
       // we update it in-place rather than inserting a new row — inserting would
-      // either duplicate the tool_call_id or violate parent_id FK (LOBE-7154).
+ // either duplicate the tool_call_id or violate parent_id FK .
       let toolMessageId: string | undefined;
       try {
         if (payload.skipCreateToolMessage) {
@@ -1878,8 +1876,7 @@ export const createRuntimeExecutors = (
     } catch (error) {
       // Persist-level failures (parent FK violation etc.) must propagate so
       // the step fails — otherwise the swallow-and-continue path keeps
-      // running the agent on a broken conversation chain. See LOBE-7158.
-      if (isPersistFatal(error)) throw error;
+      // running the agent on a broken conversation chain.       if (isPersistFatal(error)) throw error;
 
       if (ctx.hookDispatcher) {
         ctx.hookDispatcher
@@ -2201,8 +2198,7 @@ export const createRuntimeExecutors = (
             // Normalize BEFORE publishing — clients treat `error` stream
             // events as terminal and surface `event.data.error` directly, so
             // a raw SQL error here would leak driver text to the user before
-            // the ConversationParentMissing throw is consumed. See LOBE-7158.
-            const fatal = isParentMessageMissingError(error)
+            // the ConversationParentMissing throw is consumed.             const fatal = isParentMessageMissingError(error)
               ? createConversationParentMissingError(parentMessageId, error)
               : error instanceof Error
                 ? error
@@ -2603,7 +2599,7 @@ export const createRuntimeExecutors = (
           // newState.messages. When the approval resumes, the `call_tool`
           // executor (skip-create branch) appends the resolved tool message
           // to state.messages itself. Pushing a placeholder here produced
-          // two entries for the same tool_call_id — see LOBE-7151 review P2.
+          // two entries for the same tool_call_id — review P2.
 
           log(
             '[%s:%d] Created pending tool message %s for %s',
@@ -2720,7 +2716,7 @@ export const createRuntimeExecutors = (
           error,
         );
         // Normalize BEFORE publishing so clients surface the typed business
-        // error instead of the raw driver text (see LOBE-7158 review).
+        // error instead of the raw driver text .
         const fatal = isParentMessageMissingError(error)
           ? createConversationParentMissingError(parentMessageId, error)
           : error instanceof Error
