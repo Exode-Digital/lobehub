@@ -16,7 +16,7 @@ const useParamsMock = vi.hoisted(() => vi.fn());
 const usePathnameMock = vi.hoisted(() => vi.fn());
 const agentStoreMock = vi.hoisted(() => ({
   activeAgentId: undefined as string | undefined,
-  isHeterogeneous: false,
+  heterogeneousProviderType: undefined as string | undefined,
 }));
 
 vi.mock('@lobehub/ui', () => ({
@@ -93,7 +93,8 @@ vi.mock('@/store/agent', () => ({
 
 vi.mock('@/store/agent/selectors', () => ({
   agentSelectors: {
-    isCurrentAgentHeterogeneous: (state: typeof agentStoreMock) => state.isHeterogeneous,
+    currentAgentHeterogeneousProviderType: (state: typeof agentStoreMock) =>
+      state.heterogeneousProviderType,
   },
 }));
 
@@ -133,7 +134,7 @@ describe('Agent sidebar header nav', () => {
     useParamsMock.mockReset();
     usePathnameMock.mockReset();
     agentStoreMock.activeAgentId = undefined;
-    agentStoreMock.isHeterogeneous = false;
+    agentStoreMock.heterogeneousProviderType = undefined;
 
     useParamsMock.mockReturnValue({ aid: 'agt_eH4zL98zBx5u', topicId: 'tpc_2FCHvjS7d4CA' });
   });
@@ -171,10 +172,32 @@ describe('Agent sidebar header nav', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'actions.addNewTopic' }));
     fireEvent.click(screen.getByRole('button', { name: 'tab.profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'tab.integration' }));
 
     expect(pushMock).toHaveBeenNthCalledWith(1, '/agent/agt_from_task');
     expect(pushMock).toHaveBeenNthCalledWith(2, '/agent/agt_from_task/profile');
+    expect(pushMock).toHaveBeenNthCalledWith(3, '/agent/agt_from_task/channel');
     expect(mutateMock).toHaveBeenCalledTimes(1);
-    expect(switchTopicMock).toHaveBeenCalledWith(null, { skipRefreshMessage: true });
+    expect(switchTopicMock).toHaveBeenCalledTimes(2);
+    expect(switchTopicMock).toHaveBeenNthCalledWith(1, null, { skipRefreshMessage: true });
+    expect(switchTopicMock).toHaveBeenNthCalledWith(2, null, { skipRefreshMessage: true });
+  });
+
+  it('keeps channel visible for Claude Code heterogeneous agents', () => {
+    agentStoreMock.heterogeneousProviderType = 'claude-code';
+    usePathnameMock.mockReturnValue('/agent/agt_eH4zL98zBx5u');
+
+    render(<Nav />);
+
+    expect(screen.getByRole('button', { name: 'tab.integration' })).toBeInTheDocument();
+  });
+
+  it('hides channel for non-Claude Code heterogeneous agents', () => {
+    agentStoreMock.heterogeneousProviderType = 'codex';
+    usePathnameMock.mockReturnValue('/agent/agt_eH4zL98zBx5u');
+
+    render(<Nav />);
+
+    expect(screen.queryByRole('button', { name: 'tab.integration' })).not.toBeInTheDocument();
   });
 });

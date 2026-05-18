@@ -7,7 +7,11 @@ import type {
 } from '@lobechat/agent-signal';
 import { MemoryApiName, MemoryIdentifier } from '@lobechat/builtin-tool-memory';
 import type { LobeToolManifest, ToolExecutor, ToolSource } from '@lobechat/context-engine';
-import { RequestTrigger } from '@lobechat/types';
+import {
+  createAgentSignalMemoryWriterPrompt,
+  createAgentSignalMemoryWriterSystemRole,
+} from '@lobechat/prompts';
+import { LayersEnum, RequestTrigger } from '@lobechat/types';
 import { nanoid } from '@lobechat/utils';
 
 import { PluginModel } from '@/database/models/plugin';
@@ -40,42 +44,45 @@ import { AGENT_SIGNAL_POLICY_ACTION_TYPES } from '../../types';
 
 const MEMORY_AGENT_MAX_STEPS = 8;
 
+const MEMORY_WRITE_API_NAMES = [
+  MemoryApiName.addActivityMemory,
+  MemoryApiName.addContextMemory,
+  MemoryApiName.addExperienceMemory,
+  MemoryApiName.addIdentityMemory,
+  MemoryApiName.addPreferenceMemory,
+  MemoryApiName.removeIdentityMemory,
+  MemoryApiName.updateIdentityMemory,
+] as const;
+
 const MEMORY_WRITE_TOOL_NAMES = new Set(
-  [
-    MemoryApiName.addActivityMemory,
-    MemoryApiName.addContextMemory,
-    MemoryApiName.addExperienceMemory,
-    MemoryApiName.addIdentityMemory,
-    MemoryApiName.addPreferenceMemory,
-    MemoryApiName.removeIdentityMemory,
-    MemoryApiName.updateIdentityMemory,
-  ].map((apiName) => `${MemoryIdentifier}/${apiName}`),
+  MEMORY_WRITE_API_NAMES.map((apiName) => `${MemoryIdentifier}/${apiName}`),
 );
 
-const MEMORY_WRITER_SYSTEM_ROLE = `You are the Agent Signal memory writer.
+const MEMORY_WRITE_API_NAME_SET = new Set<string>(MEMORY_WRITE_API_NAMES);
+const MEMORY_WRITE_TARGET_BY_API_NAME: Record<string, { idKey: string; layer: LayersEnum }> = {
+  [MemoryApiName.addActivityMemory]: { idKey: 'activityId', layer: LayersEnum.Activity },
+  [MemoryApiName.addContextMemory]: { idKey: 'contextId', layer: LayersEnum.Context },
+  [MemoryApiName.addExperienceMemory]: { idKey: 'experienceId', layer: LayersEnum.Experience },
+  [MemoryApiName.addIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
+  [MemoryApiName.addPreferenceMemory]: { idKey: 'preferenceId', layer: LayersEnum.Preference },
+  [MemoryApiName.removeIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
+  [MemoryApiName.updateIdentityMemory]: { idKey: 'identityId', layer: LayersEnum.Identity },
+};
+const TOOL_NAME_SEPARATOR = '____';
 
-You are not chatting with the user.
-Your job is to decide whether the feedback should update durable user memory.
-
-Use only the lobe-user-memory built-in tool when a durable memory write is justified.
-Choose the correct memory API based on the feedback:
-- addPreferenceMemory for stable future-facing preferences
-- addIdentityMemory / updateIdentityMemory / removeIdentityMemory for enduring identity facts or corrections
-- addContextMemory for ongoing situations, environments, or projects
-- addExperienceMemory for reusable lessons from outcomes or workflows
-- addActivityMemory for notable concrete events worth remembering
-
-Do not use memory tools for requests to create, update, refine, merge, consolidate, or store reusable skills, procedures, workflows, playbooks, checklists, agent capabilities, agent prompts, or agent documents.
-If the feedback asks for a "reusable skill", "future workflow", "PR review checklist skill", "agent capability", or similar operational artifact, skip memory and leave it to the skill/document management path.
-Apply the same boundary to Chinese feedback such as "复用 skill", "可复用流程", "review 流程", "检查清单", "下次参考这个流程", "保留这个流程", or "合并/更新清单".
-Do not summarize skill-management requests as preferences.
-
-If the feedback should not become durable memory, do not call any tools and end briefly.
-Do not invent your own JSON schema. Use the built-in tool exactly as exposed.`;
+export interface MemoryActionTarget {
+  id?: string;
+  memoryId?: string;
+  memoryLayer?: LayersEnum;
+  summary?: string;
+  title: string;
+  type: 'memory';
+}
 
 export interface MemoryAgentActionResult {
   detail?: string;
   status: 'applied' | 'failed' | 'skipped';
+  target?: MemoryActionTarget;
 }
 
 export interface UserMemoryActionHandlerOptions {
@@ -86,6 +93,7 @@ export interface UserMemoryActionHandlerOptions {
     conflictPolicy?: AgentSignalFeedbackDomainConflictPolicy;
     evidence?: AgentSignalFeedbackEvidence[];
     feedbackHint?: 'not_satisfied' | 'satisfied';
+    memoryLanguage?: string;
     message: string;
     reason?: string;
     serializedContext?: string;
@@ -121,46 +129,6 @@ const toExecutorError = (actionId: string, error: unknown, startedAt: number): E
 
 const isUserMemoryAction = (action: BaseAction): action is ActionUserMemoryHandle => {
   return action.actionType === AGENT_SIGNAL_POLICY_ACTION_TYPES.userMemoryHandle;
-};
-
-const toMemoryWriterPrompt = (input: {
-  conflictPolicy?: AgentSignalFeedbackDomainConflictPolicy;
-  evidence?: AgentSignalFeedbackEvidence[];
-  feedbackHint?: 'not_satisfied' | 'satisfied';
-  message: string;
-  reason?: string;
-  serializedContext?: string;
-  sourceHints?: AgentSignalFeedbackSourceHints;
-}) => {
-  const feedbackHintBlock = input.feedbackHint
-    ? `Feedback satisfaction hint: ${input.feedbackHint}`
-    : undefined;
-  const domainReasonBlock = input.reason ? `Domain routing reason: ${input.reason}` : undefined;
-  const evidenceBlock =
-    input.evidence && input.evidence.length > 0
-      ? `Domain evidence:\n${JSON.stringify(input.evidence)}`
-      : undefined;
-  const sourceHintsBlock = input.sourceHints
-    ? `Source hints:\n${JSON.stringify(input.sourceHints)}`
-    : undefined;
-  const conflictPolicyBlock = input.conflictPolicy
-    ? `Conflict policy:\n${JSON.stringify(input.conflictPolicy)}`
-    : undefined;
-  const routingContextBlock = [
-    feedbackHintBlock,
-    domainReasonBlock,
-    evidenceBlock,
-    sourceHintsBlock,
-    conflictPolicyBlock,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-  const contextBlock = input.serializedContext?.trim()
-    ? `\n\nAdditional runtime context:\n${input.serializedContext}`
-    : '';
-  const hintBlock = routingContextBlock ? `\n\nRouting context:\n${routingContextBlock}` : '';
-
-  return `User feedback to analyze for durable memory:\n${input.message}${hintBlock}${contextBlock}`;
 };
 
 const createInitialContext = (operationId: string): AgentRuntimeContext => {
@@ -209,12 +177,203 @@ const hasFailedMemoryWrite = (state: AgentState) => {
   );
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getString = (value: unknown) => {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+};
+
+const parseToolArguments = (value: unknown): Record<string, unknown> | undefined => {
+  if (isRecord(value)) return value;
+
+  if (typeof value !== 'string') return;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return;
+  }
+};
+
+interface MemoryToolCallSnapshot {
+  apiName?: string;
+  arguments?: unknown;
+  id?: string;
+  identifier?: string;
+}
+
+const getToolCallsFromMessage = (message: unknown): MemoryToolCallSnapshot[] => {
+  if (!isRecord(message)) return [];
+
+  const toolCalls: MemoryToolCallSnapshot[] = [];
+  const persistedTools = Array.isArray(message.tools) ? message.tools : [];
+
+  for (const tool of persistedTools) {
+    if (!isRecord(tool)) continue;
+
+    toolCalls.push({
+      apiName: getString(tool.apiName),
+      arguments: tool.arguments,
+      id: getString(tool.id),
+      identifier: getString(tool.identifier),
+    });
+  }
+
+  const rawToolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+
+  for (const toolCall of rawToolCalls) {
+    if (!isRecord(toolCall)) continue;
+
+    const fn = isRecord(toolCall.function) ? toolCall.function : undefined;
+    const name = getString(fn?.name);
+    if (!name) continue;
+
+    const [identifier, apiName] = name.split(TOOL_NAME_SEPARATOR);
+
+    toolCalls.push({
+      apiName: apiName || name,
+      arguments: fn?.arguments,
+      id: getString(toolCall.id),
+      identifier: apiName ? identifier : undefined,
+    });
+  }
+
+  return toolCalls;
+};
+
+const isMemoryWriteToolCall = (
+  toolCall: MemoryToolCallSnapshot,
+): toolCall is MemoryToolCallSnapshot & { apiName: string } => {
+  if (!toolCall.apiName || !MEMORY_WRITE_API_NAME_SET.has(toolCall.apiName)) return false;
+
+  return !toolCall.identifier || toolCall.identifier === MemoryIdentifier;
+};
+
+const getToolMessageCallId = (message: unknown) => {
+  if (!isRecord(message)) return;
+
+  const plugin = isRecord(message.plugin) ? message.plugin : undefined;
+
+  return getString(message.tool_call_id) ?? getString(plugin?.id);
+};
+
+const getMemoryIdsFromToolMessage = (message: unknown) => {
+  if (!isRecord(message)) return;
+
+  const ids: Record<string, string> = {};
+  const addId = (key: string, value: unknown) => {
+    if (!key.endsWith('Id')) return;
+
+    const id = getString(value);
+    if (id) ids[key] = id;
+  };
+
+  const pluginState = isRecord(message.pluginState) ? message.pluginState : undefined;
+  if (pluginState) {
+    for (const [key, value] of Object.entries(pluginState)) {
+      addId(key, value);
+    }
+  }
+
+  const content = getString(message.content);
+  if (content) {
+    for (const match of content.matchAll(/([A-Za-z]\w*Id):\s*"([^"]+)"/g)) {
+      addId(match[1], match[2]);
+    }
+  }
+
+  return Object.keys(ids).length > 0 ? ids : undefined;
+};
+
+const getMemoryToolResultIds = (state: AgentState) => {
+  const resultIds = new Map<string, Record<string, string>>();
+
+  for (const message of state.messages ?? []) {
+    const callId = getToolMessageCallId(message);
+    const ids = getMemoryIdsFromToolMessage(message);
+
+    if (callId && ids) resultIds.set(callId, ids);
+  }
+
+  return resultIds;
+};
+
+const getNestedString = (payload: Record<string, unknown>, keys: string[]) => {
+  let current: unknown = payload;
+
+  for (const key of keys) {
+    if (!isRecord(current)) return;
+
+    current = current[key];
+  }
+
+  return getString(current);
+};
+
+const getToolArgumentString = (args: Record<string, unknown>, key: string) => {
+  return getString(args[key]) ?? getNestedString(args, ['set', key]);
+};
+
+const createTargetFromToolArguments = (
+  args: Record<string, unknown>,
+  toolCall: MemoryToolCallSnapshot & { apiName: string },
+  resultIds?: Record<string, string>,
+): MemoryActionTarget | undefined => {
+  const title = getToolArgumentString(args, 'title');
+  if (!title) return;
+
+  const targetConfig = MEMORY_WRITE_TARGET_BY_API_NAME[toolCall.apiName];
+  const id = targetConfig ? resultIds?.[targetConfig.idKey] : undefined;
+  const memoryId = resultIds?.memoryId;
+  const summary =
+    getToolArgumentString(args, 'summary') ??
+    getToolArgumentString(args, 'details') ??
+    getNestedString(args, ['withPreference', 'conclusionDirectives']);
+
+  return {
+    ...((id ?? memoryId) ? { id: id ?? memoryId } : {}),
+    ...(memoryId ? { memoryId } : {}),
+    ...(targetConfig ? { memoryLayer: targetConfig.layer } : {}),
+    ...(summary ? { summary } : {}),
+    title,
+    type: 'memory',
+  };
+};
+
+export const resolveMemoryActionTargetFromState = (
+  state: AgentState,
+): MemoryActionTarget | undefined => {
+  const resultIds = getMemoryToolResultIds(state);
+
+  for (const message of [...(state.messages ?? [])].reverse()) {
+    const toolCalls = getToolCallsFromMessage(message).reverse();
+
+    for (const toolCall of toolCalls) {
+      if (!isMemoryWriteToolCall(toolCall)) continue;
+      if (!toolCall.id) continue;
+
+      const confirmedResultIds = resultIds.get(toolCall.id);
+      if (!confirmedResultIds) continue;
+
+      const args = parseToolArguments(toolCall.arguments);
+      if (!args) continue;
+
+      const target = createTargetFromToolArguments(args, toolCall, confirmedResultIds);
+      if (target) return target;
+    }
+  }
+};
+
 export const runMemoryActionAgent = async (
   input: {
     agentId?: string;
     conflictPolicy?: AgentSignalFeedbackDomainConflictPolicy;
     evidence?: AgentSignalFeedbackEvidence[];
     feedbackHint?: 'not_satisfied' | 'satisfied';
+    memoryLanguage?: string;
     message: string;
     reason?: string;
     serializedContext?: string;
@@ -233,6 +392,7 @@ export const runMemoryActionAgent = async (
   const agentService = options.agentService ?? new AgentService(options.db, options.userId);
   const pluginModel = options.pluginModel ?? new PluginModel(options.db, options.userId);
   const agentConfig = await agentService.getAgentConfig(input.agentId);
+  const memoryLanguage = input.memoryLanguage ?? 'English';
 
   if (!agentConfig?.model || !agentConfig?.provider) {
     return {
@@ -259,7 +419,7 @@ export const runMemoryActionAgent = async (
   const memoryRuntimeAgentConfig = {
     ...agentConfig,
     plugins: [MemoryIdentifier],
-    systemRole: MEMORY_WRITER_SYSTEM_ROLE,
+    systemRole: createAgentSignalMemoryWriterSystemRole({ memoryLanguage }),
   };
 
   const toolsEngine = createServerAgentToolsEngine(toolsContext, {
@@ -308,7 +468,12 @@ export const runMemoryActionAgent = async (
     },
     autoStart: false,
     initialContext,
-    initialMessages: [{ content: toMemoryWriterPrompt(input), role: 'user' }],
+    initialMessages: [
+      {
+        content: createAgentSignalMemoryWriterPrompt({ ...input, memoryLanguage }),
+        role: 'user',
+      },
+    ],
     modelRuntimeConfig: {
       model: agentConfig.model,
       provider: agentConfig.provider,
@@ -338,7 +503,13 @@ export const runMemoryActionAgent = async (
   }
 
   if (hasSuccessfulMemoryWrite(finalState)) {
-    return { status: 'applied' };
+    const target = resolveMemoryActionTargetFromState(finalState);
+
+    return {
+      ...(target?.summary ? { detail: target.summary } : {}),
+      status: 'applied',
+      ...(target ? { target } : {}),
+    };
   }
 
   if (hasFailedMemoryWrite(finalState)) {
@@ -421,13 +592,15 @@ export const handleUserMemoryAction = async (
       topicId: typeof action.payload.topicId === 'string' ? action.payload.topicId : undefined,
     };
     const runner = options.memoryActionRunner ?? ((input) => runMemoryActionAgent(input, options));
+    let memoryActionResult: MemoryAgentActionResult | undefined;
     const memoryService = createMemoryService({
       writeMemory: async () => {
         const result = await runner(runnerInput);
+        memoryActionResult = result;
 
         if (result.status === 'applied') {
           return {
-            memoryId: idempotencyKey ?? action.actionId,
+            memoryId: result.target?.id ?? idempotencyKey ?? action.actionId,
             summary: result.detail,
           };
         }
@@ -451,6 +624,7 @@ export const handleUserMemoryAction = async (
       .then<MemoryAgentActionResult>((writeResult) => ({
         detail: writeResult.summary,
         status: 'applied',
+        ...(memoryActionResult?.target ? { target: memoryActionResult.target } : {}),
       }))
       .catch((error: unknown): MemoryAgentActionResult => {
         if (error instanceof MemoryActionError) {
@@ -470,6 +644,7 @@ export const handleUserMemoryAction = async (
         actionId: action.actionId,
         attempt: finalizeAttempt(startedAt, 'succeeded'),
         detail: result.detail,
+        ...(result.target ? { output: { target: result.target } } : {}),
         status: 'applied',
       };
     }
