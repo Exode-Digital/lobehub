@@ -25,6 +25,7 @@
       "@/envs/*": ["./packages/env/src/*", "./src/envs/*"],
       "@/libs/trpc/*": ["./packages/trpc/src/*", "./src/libs/trpc/*"],
       "@/config/*": ["./packages/app-config/src/*", "./src/config/*"],
+      "@/locales/*": ["./packages/locales/src/*", "./src/locales/*"],
       "@/*": ["./src/*"],
       "~test-utils": ["./tests/utils.tsx"]
     },

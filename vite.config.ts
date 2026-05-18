@@ -304,7 +304,7 @@ export default defineConfig({
         './src/hooks/**/*.{ts,tsx}',
         './src/layout/**/*.{ts,tsx}',
         './src/libs/**/*.{ts,tsx}',
-        './src/locales/**/*.ts',
+
         './src/routes/**/*.{ts,tsx}',
         './src/services/**/*.ts',
         './src/store/**/*.{ts,tsx}',
@@ -333,6 +333,7 @@ export default defineConfig({
         './packages/env/src/**/*.ts',
         './packages/trpc/src/**/*.{ts,tsx}',
         './packages/app-config/src/**/*.ts',
+        './packages/locales/src/**/*.ts',
         './packages/fetch-sse/src/**/*.ts',
         './packages/desktop-bridge/src/**/*.ts',
         './packages/python-interpreter/src/**/*.ts',
