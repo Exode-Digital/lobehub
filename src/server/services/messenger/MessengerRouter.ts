@@ -98,6 +98,19 @@ interface MessengerCommand {
   description: string;
   handler: (ctx: MessengerCommandContext) => Promise<void>;
   name: string;
+  /**
+   * Native slash-command argument schema for platforms that require
+   * arguments to be declared up-front (Discord, Slack). Without this,
+   * Discord registers the command as zero-arg — clicking it from the
+   * slash menu fires the handler with no value field shown to the user.
+   * Mirrors `BotCommand.options` in `BotMessageRouter` so command authors
+   * use the same shape across both routers.
+   */
+  options?: Array<{
+    description: string;
+    name: string;
+    required?: boolean;
+  }>;
 }
 
 const HELP_TEXT = [
@@ -329,7 +342,17 @@ export class MessengerRouter {
     if (client.registerBotCommands) {
       client
         .registerBotCommands(
-          this.commands.map((cmd) => ({ command: cmd.name, description: cmd.description })),
+          this.commands.map((cmd) => ({
+            command: cmd.name,
+            description: cmd.description,
+            // Forward the option schema so Discord/Slack surface required
+            // arguments (e.g. `/feedback message:`) in the slash picker.
+            // Without this, the command registers as zero-arg and the
+            // user can fire it without providing the required text — the
+            // handler then sees empty `args` and falls back to the usage
+            // hint. Mirrors `BotMessageRouter.createAndRegisterBot`.
+            options: cmd.options,
+          })),
         )
         .catch((error) =>
           log('registerBotCommands failed for %s: %O', creds.installationKey, error),
@@ -821,6 +844,16 @@ export class MessengerRouter {
       },
       {
         description: 'Send feedback directly to the LobeHub team (no AI reply)',
+        // Declaring the argument so Discord/Slack surface a `/feedback <message>`
+        // prompt; without it the slash picker registers the command as zero-arg
+        // and the user can't enter feedback text from the picker UI.
+        options: [
+          {
+            description: 'Your feedback message',
+            name: 'message',
+            required: true,
+          },
+        ],
         handler: async (ctx) => {
           // Feedback is tied to a LobeHub account so the team can follow up;
           // an unbound user has no email/identity to attach. Mirror the
