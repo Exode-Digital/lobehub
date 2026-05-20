@@ -1,6 +1,6 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,9 +95,9 @@ describe('bot message send --attachment', () => {
   });
 
   it('base64-encodes a local file path', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'lh-cli-attach-'));
-    const path = join(dir, 'tiny.txt');
-    await writeFile(path, 'hello');
+    const dir = await mkdtemp(path.join(tmpdir(), 'lh-cli-attach-'));
+    const filePath = path.join(dir, 'tiny.txt');
+    await writeFile(filePath, 'hello');
 
     const program = createProgram();
     await program.parseAsync([
@@ -112,7 +112,7 @@ describe('bot message send --attachment', () => {
       '--message',
       'm',
       '--attachment',
-      path,
+      filePath,
     ]);
 
     const call = mockTrpcClient.botMessage.sendMessage.mutate.mock.calls[0][0];
