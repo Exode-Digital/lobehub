@@ -187,6 +187,8 @@ interface SplitCreateMessageParams {
   relations: CreateMessageRelationParams;
 }
 
+const isOptimisticMessageId = (id?: string | null) => id?.startsWith('tmp_') ?? false;
+
 export class MessageModel {
   private userId: string;
   private db: LobeChatDatabase;
@@ -1592,6 +1594,12 @@ export class MessageModel {
   ) => {
     // Ensure group message does not populate sessionId
     const normalizedMessage = message.groupId ? { ...message, sessionId: null } : message;
+    // Frontend optimistic placeholders are local-only ids. If a stale tmp parent
+    // leaks into persistence, PostgreSQL rejects the insert with
+    // messages_parent_id_messages_id_fk, for example parentId='tmp_i5p71qZm'.
+    const parentId = isOptimisticMessageId(normalizedMessage.parentId)
+      ? undefined
+      : normalizedMessage.parentId;
 
     return {
       ...normalizedMessage,
@@ -1601,6 +1609,7 @@ export class MessageModel {
       createdAt: createdAt ? new Date(createdAt) : undefined,
       id,
       model: fromModel,
+      parentId,
       provider: fromProvider,
       updatedAt: updatedAt ? new Date(updatedAt) : undefined,
       userId: this.userId,

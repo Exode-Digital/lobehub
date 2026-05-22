@@ -77,6 +77,36 @@ describe('MessageModel Create Tests', () => {
       expect(result[0].content).toBe('new message');
     });
 
+    it('should ignore optimistic temporary parent ids when creating a single message', async () => {
+      const result = await messageModel.create({
+        content: 'message with stale optimistic parent',
+        parentId: 'tmp_staleParent',
+        role: 'assistant',
+        sessionId: '1',
+      });
+
+      expect(result.parentId).toBeNull();
+    });
+
+    it('should ignore optimistic temporary parent ids when creating user and assistant messages', async () => {
+      const result = await messageModel.createUserAndAssistantMessages({
+        assistantMessage: {
+          content: 'assistant reply',
+          role: 'assistant',
+          sessionId: '1',
+        },
+        userMessage: {
+          content: 'follow-up from stale optimistic state',
+          parentId: 'tmp_staleParent',
+          role: 'user',
+          sessionId: '1',
+        },
+      });
+
+      expect(result.userMessage.parentId).toBeNull();
+      expect(result.assistantMessage.parentId).toBe(result.userMessage.id);
+    });
+
     it('should create a message', async () => {
       const sessionId = 'session1';
       await serverDB.insert(sessions).values([{ id: sessionId, userId }]);
