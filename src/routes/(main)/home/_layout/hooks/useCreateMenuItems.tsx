@@ -21,6 +21,8 @@ import { useAgentStore } from '@/store/agent';
 import { useAgentGroupStore } from '@/store/agentGroup';
 import { useHomeStore } from '@/store/home';
 import { usePageStore } from '@/store/page';
+import { useUserStore } from '@/store/user';
+import { labPreferSelectors } from '@/store/user/selectors';
 
 interface CreateAgentOptions {
   groupId?: string;
@@ -198,6 +200,7 @@ export const useCreateMenuItems = () => {
 
   const agentModal = useOptionalAgentModal();
   const openCreateModal = agentModal?.openCreateModal;
+  const enablePlatformAgent = useUserStore(labPreferSelectors.enablePlatformAgent);
 
   /**
    * Create agent menu item
@@ -248,18 +251,21 @@ export const useCreateMenuItems = () => {
    * Opens the 3-step creation modal
    */
   const createPlatformAgentMenuItem = useCallback(
-    (options?: CreateAgentOptions): ItemType => ({
-      icon: <Icon icon={MonitorSmartphone} />,
-      key: 'newPlatformAgent',
-      label: t('newPlatformAgent'),
-      onClick: (info) => {
-        info.domEvent?.stopPropagation();
-        agentModal?.openCreatePlatformAgentModal(
-          options?.groupId ? { groupId: options.groupId } : undefined,
-        );
-      },
-    }),
-    [t, agentModal],
+    (options?: CreateAgentOptions): ItemType => {
+      if (!enablePlatformAgent) return null;
+      return {
+        icon: <Icon icon={MonitorSmartphone} />,
+        key: 'newPlatformAgent',
+        label: t('newPlatformAgent'),
+        onClick: (info) => {
+          info.domEvent?.stopPropagation();
+          agentModal?.openCreatePlatformAgentModal(
+            options?.groupId ? { groupId: options.groupId } : undefined,
+          );
+        },
+      };
+    },
+    [t, agentModal, enablePlatformAgent],
   );
 
   /**
