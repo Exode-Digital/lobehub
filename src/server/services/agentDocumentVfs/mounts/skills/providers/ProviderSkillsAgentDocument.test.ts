@@ -276,6 +276,60 @@ describe('Agent skill VFS providers', () => {
       expect(result.content).toBe(content);
     });
 
+    it('creates raw SKILL.md markdown with multiple horizontal rules without treating it as frontmatter', async () => {
+      const content = `---
+# Skill
+---
+Body`;
+      agentDocumentModel.findByAgent.mockResolvedValue([]);
+      agentDocumentModel.create
+        .mockResolvedValueOnce({
+          documentId: 'bundle-1',
+          fileType: 'skills/bundle',
+          filename: 'writer',
+          id: 'agent-doc-bundle',
+          metadata: null,
+          parentId: null,
+          templateId: 'agent-skill',
+          title: 'writer',
+        })
+        .mockResolvedValueOnce({
+          content,
+          documentId: 'file-1',
+          fileType: 'skills/index',
+          filename: 'SKILL.md',
+          id: 'agent-doc-file',
+          metadata: null,
+          parentId: 'bundle-1',
+          templateId: 'agent-skill',
+          title: 'SKILL.md',
+        });
+
+      const provider = new ProviderSkillsAgentDocument('agent', {
+        agentDocumentModel,
+        documentService,
+      });
+
+      const result = await provider.create({
+        agentId: 'agent-1',
+        content,
+        skillName: 'writer',
+        targetNamespace: 'agent',
+      });
+
+      expect(agentDocumentModel.create).toHaveBeenNthCalledWith(
+        2,
+        'agent-1',
+        'SKILL.md',
+        content,
+        expect.objectContaining({
+          editorData: { markdown: content },
+          fileType: 'skills/index',
+        }),
+      );
+      expect(result.content).toBe(content);
+    });
+
     /**
      * @example
      * A partially-created skill bundle reserves the package name and blocks duplicate creation.
@@ -401,6 +455,49 @@ describe('Agent skill VFS providers', () => {
     it('updates raw SKILL.md markdown starting with a horizontal rule without treating it as frontmatter', async () => {
       const content = `---
 # Updated`;
+      agentDocumentModel.findByAgent.mockResolvedValue([
+        createAgentDocument({
+          documentId: 'bundle-1',
+          fileType: 'skills/bundle',
+          filename: 'skill-a',
+          id: 'agent-doc-bundle',
+          parentId: null,
+          templateId: 'agent-skill',
+        }),
+        createAgentDocument({
+          content: '# Old',
+          documentId: 'file-1',
+          fileType: 'skills/index',
+          filename: 'SKILL.md',
+          id: 'agent-doc-file',
+          parentId: 'bundle-1',
+          templateId: 'agent-skill',
+        }),
+      ]);
+
+      const provider = new ProviderSkillsAgentDocument('agent', {
+        agentDocumentModel,
+        documentService,
+      });
+
+      const result = await provider.update({
+        agentId: 'agent-1',
+        content,
+        path: './lobe/skills/agent/skills/skill-a/SKILL.md',
+      });
+
+      expect(agentDocumentModel.update).toHaveBeenCalledWith('agent-doc-file', {
+        content,
+        editorData: { markdown: content },
+      });
+      expect(result.content).toBe(content);
+    });
+
+    it('updates raw SKILL.md markdown with multiple horizontal rules without treating it as frontmatter', async () => {
+      const content = `---
+# Updated
+---
+Body`;
       agentDocumentModel.findByAgent.mockResolvedValue([
         createAgentDocument({
           documentId: 'bundle-1',

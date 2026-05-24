@@ -26,6 +26,11 @@ import { TopicDocumentModel } from '@/database/models/topicDocument';
 import { AgentDocumentVfsError } from '../agentDocumentVfs/errors';
 import { isManagedSkillDocument } from '../agentDocumentVfs/mounts/skills/providers/providerSkillsAgentDocumentUtils';
 import { DocumentService } from '../document';
+import { SKILL_INDEX_FILE_TYPE } from '../skillManagement/constants';
+import {
+  replaceSkillIndexBodyMarkdown,
+  tryGetSkillIndexBodyMarkdown,
+} from '../skillManagement/frontmatter';
 import { TOOL_RESULTS_DIR_NAME } from '../toolExecution/constants';
 import {
   type AgentDocumentLiteXMLOperation,
@@ -35,6 +40,11 @@ import {
 } from './headlessEditor';
 
 const MAX_UNIQUE_FILENAME_ATTEMPTS = 1000;
+
+const shouldPreserveSkillIndexFrontmatter = (doc: AgentDocument) =>
+  isManagedSkillDocument(doc) &&
+  doc.fileType === SKILL_INDEX_FILE_TYPE &&
+  tryGetSkillIndexBodyMarkdown(doc.content) !== undefined;
 
 interface UpsertDocumentParams {
   agentId: string;
@@ -653,9 +663,12 @@ export class AgentDocumentsService {
       fallbackContent: doc.content,
       operations,
     });
+    const content = shouldPreserveSkillIndexFrontmatter(doc)
+      ? replaceSkillIndexBodyMarkdown({ bodyMarkdown: snapshot.content, content: doc.content })
+      : snapshot.content;
 
     await this.agentDocumentModel.update(documentId, {
-      content: snapshot.content,
+      content,
       editorData: snapshot.editorData,
     });
 

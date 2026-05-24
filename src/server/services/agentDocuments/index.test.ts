@@ -557,6 +557,44 @@ describe('AgentDocumentsService', () => {
       expect(headlessEditorMocks.applyLiteXMLBatch).not.toHaveBeenCalled();
       expect(result?.content).toBe('xml updated');
     });
+
+    it('should preserve managed skill frontmatter when applying LiteXML operations', async () => {
+      const content = '---\ndescription: Writes docs\nname: writer\n---\n# Old';
+      mockModel.findById
+        .mockResolvedValueOnce({
+          agentId: 'agent-1',
+          content,
+          documentId: 'documents-1',
+          editorData: { root: { children: [{ text: 'old' }] } },
+          fileType: 'skills/index',
+          id: 'agent-doc-1',
+          templateId: 'agent-skill',
+          title: 'SKILL.md',
+        })
+        .mockResolvedValueOnce({
+          agentId: 'agent-1',
+          content: '---\ndescription: Writes docs\nname: writer\n---\nxml updated',
+          documentId: 'documents-1',
+          editorData: { root: { children: [] } },
+          fileType: 'skills/index',
+          id: 'agent-doc-1',
+          templateId: 'agent-skill',
+          title: 'SKILL.md',
+        });
+
+      const service = new AgentDocumentsService(db, userId);
+      const result = await service.modifyDocumentNodesById(
+        'agent-doc-1',
+        [{ action: 'modify', litexml: '<p id="node-1">xml updated</p>' }],
+        'agent-1',
+      );
+
+      expect(mockModel.update).toHaveBeenCalledWith('agent-doc-1', {
+        content: '---\ndescription: Writes docs\nname: writer\n---\nxml updated',
+        editorData: { root: { children: [] } },
+      });
+      expect(result?.content).toBe('---\ndescription: Writes docs\nname: writer\n---\nxml updated');
+    });
   });
 
   describe('renameDocumentById', () => {

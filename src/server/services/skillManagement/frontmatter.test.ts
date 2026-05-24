@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeSkillIndexContent,
   parseSkillFrontmatter,
+  tryGetSkillIndexBodyMarkdown,
   validateSkillName,
 } from './frontmatter';
 
@@ -110,5 +111,17 @@ describe('normalizeSkillIndexContent', () => {
         description: '   ',
       }),
     ).toThrow('Skill frontmatter description is required');
+  });
+});
+
+describe('tryGetSkillIndexBodyMarkdown', () => {
+  it('returns body Markdown only when the leading block is valid skill frontmatter', () => {
+    expect(
+      tryGetSkillIndexBodyMarkdown('---\nname: writer\ndescription: Writes docs\n---\n# Body'),
+    ).toBe('# Body');
+  });
+
+  it('does not strip raw Markdown that starts and ends with horizontal rules', () => {
+    expect(tryGetSkillIndexBodyMarkdown('---\n# Title\n---\nBody')).toBeUndefined();
   });
 });

@@ -34,6 +34,16 @@ export interface RenderSkillIndexContentInput {
   name: string;
 }
 
+/**
+ * Input required to replace only the editable body of a canonical managed skill index.
+ */
+export interface ReplaceSkillIndexBodyMarkdownInput {
+  /** Markdown body exported from editorData. */
+  bodyMarkdown: string;
+  /** Raw canonical SKILL.md content whose frontmatter must be preserved. */
+  content: string;
+}
+
 interface ParsedMatterResult {
   body: string;
   data: Record<string, unknown>;
@@ -91,6 +101,22 @@ const parseMatter = (content: string): ParsedMatterResult => {
   return { body: parsed.content, data: parsed.data };
 };
 
+const tryParseSkillMatter = (content: string): ParsedMatterResult | undefined => {
+  const normalizedContent = content.trimStart();
+
+  if (!FRONTMATTER_BLOCK_PATTERN.test(normalizedContent)) return undefined;
+
+  try {
+    const parsed = matter(normalizedContent);
+
+    readRequiredSkillFrontmatterFields(parsed.data);
+
+    return { body: parsed.content, data: parsed.data };
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Renders skill index content from structured metadata and body Markdown.
  *
@@ -132,12 +158,23 @@ export const getSkillIndexBodyMarkdown = (content: string): string =>
   parseMatter(content).body.replace(/^\r?\n/, '');
 
 export const tryGetSkillIndexBodyMarkdown = (content: string): string | undefined => {
-  const normalizedContent = content.trimStart();
-  const match = normalizedContent.match(FRONTMATTER_BLOCK_PATTERN);
+  const parsed = tryParseSkillMatter(content);
 
-  if (!match) return undefined;
+  return parsed?.body.replace(/^\r?\n/, '');
+};
 
-  return normalizedContent.slice(match[0].length).replace(/^\r?\n/, '');
+export const replaceSkillIndexBodyMarkdown = (
+  input: ReplaceSkillIndexBodyMarkdownInput,
+): string => {
+  const { data } = parseMatter(input.content);
+  const frontmatter = readRequiredSkillFrontmatterFields(data);
+  const serialized = matter.stringify(input.bodyMarkdown, {
+    ...data,
+    description: frontmatter.description,
+    name: frontmatter.name,
+  });
+
+  return input.bodyMarkdown.endsWith('\n') ? serialized : serialized.replace(/\n$/, '');
 };
 
 /**
@@ -155,15 +192,8 @@ export const tryGetSkillIndexBodyMarkdown = (content: string): string | undefine
  */
 export const parseSkillFrontmatter = (content: string): SkillFrontmatter => {
   const { data } = parseMatter(content);
-  const { description, name } = readSkillFrontmatterFields(data);
 
-  if (!name) throw new Error('Skill frontmatter name is required');
-  if (!description) throw new Error('Skill frontmatter description is required');
-
-  return {
-    description: normalizeFrontmatterScalar(description, 'description'),
-    name: validateSkillName(name),
-  };
+  return readRequiredSkillFrontmatterFields(data);
 };
 
 /**
@@ -202,6 +232,18 @@ const readSkillFrontmatterFields = (data: Record<string, unknown>): Partial<Skil
   const description = typeof data.description === 'string' ? data.description.trim() : undefined;
 
   return { description, name };
+};
+
+const readRequiredSkillFrontmatterFields = (data: Record<string, unknown>): SkillFrontmatter => {
+  const { description, name } = readSkillFrontmatterFields(data);
+
+  if (!name) throw new Error('Skill frontmatter name is required');
+  if (!description) throw new Error('Skill frontmatter description is required');
+
+  return {
+    description: normalizeFrontmatterScalar(description, 'description'),
+    name: validateSkillName(name),
+  };
 };
 
 /**
