@@ -58,19 +58,41 @@ export default {
   'channel.feishu.webhookMigrationDesc':
     'WebSocket mode provides real-time event delivery without needing a public callback URL. To migrate, switch the Connection Mode to WebSocket in Advanced Settings. No additional configuration is needed on the Feishu/Lark Open Platform.',
   'channel.imessage.description':
-    'Connect this assistant to iMessage through a self-hosted BlueBubbles server.',
+    'Connect this assistant to iMessage through the local LobeHub Desktop BlueBubbles bridge.',
   'channel.imessage.applicationIdHint':
-    'A stable local identifier for this iMessage channel. It is used only in the LobeHub webhook path.',
+    'A stable identifier shared by the cloud channel and the Desktop bridge.',
   'channel.imessage.applicationIdPlaceholder': 'e.g. home-mac-mini',
-  'channel.imessage.serverUrl': 'BlueBubbles Server URL',
-  'channel.imessage.serverUrlHint':
-    'Public HTTPS URL of your BlueBubbles server. LobeHub calls its REST API to send messages, read chats, and register webhooks.',
-  'channel.imessage.password': 'BlueBubbles Password',
-  'channel.imessage.passwordHint':
-    'The password configured in BlueBubbles Server. It will be encrypted and stored securely.',
+  'channel.imessage.blueBubblesPassword': 'BlueBubbles Password',
+  'channel.imessage.blueBubblesPasswordHint':
+    'Stored locally in LobeHub Desktop and used only to call the local BlueBubbles server.',
+  'channel.imessage.blueBubblesServerUrl': 'BlueBubbles Server URL',
+  'channel.imessage.blueBubblesServerUrlHint':
+    'The local BlueBubbles server URL reachable from this Desktop app.',
+  'channel.imessage.bridgeEnabled': 'Enable Bridge',
+  'channel.imessage.bridgeEnabledHint':
+    'When enabled, LobeHub Desktop receives local BlueBubbles webhooks and forwards them to LobeHub.',
+  'channel.imessage.bridgeMissingApplicationId': 'Enter the Application ID first.',
+  'channel.imessage.bridgeMissingPassword': 'Enter the BlueBubbles password first.',
+  'channel.imessage.bridgeMissingServerUrl': 'Enter the BlueBubbles Server URL first.',
+  'channel.imessage.bridgeMissingWebhookSecret': 'Enter the Webhook Secret first.',
+  'channel.imessage.bridgePasswordSavedPlaceholder': 'Leave blank to keep the saved password',
+  'channel.imessage.bridgeRefresh': 'Refresh',
+  'channel.imessage.bridgeRefreshFailed': 'Failed to refresh iMessage Desktop bridge',
+  'channel.imessage.bridgeRunning': 'Running',
+  'channel.imessage.bridgeSave': 'Save Bridge',
+  'channel.imessage.bridgeSaveFailed': 'Failed to save iMessage Desktop bridge',
+  'channel.imessage.bridgeSaved': 'iMessage Desktop bridge saved',
+  'channel.imessage.bridgeStopped': 'Stopped',
+  'channel.imessage.bridgeTest': 'Test BlueBubbles',
+  'channel.imessage.bridgeTestFailed': 'BlueBubbles test failed',
+  'channel.imessage.bridgeTestSuccess': 'BlueBubbles connection passed',
+  'channel.imessage.desktopDeviceId': 'Desktop Device ID',
+  'channel.imessage.desktopDeviceIdHint':
+    'The LobeHub Desktop device that runs the local BlueBubbles bridge. Find it in Desktop Gateway settings.',
+  'channel.imessage.desktopBridge': 'Desktop Bridge',
   'channel.imessage.webhookSecret': 'Webhook Secret',
   'channel.imessage.webhookSecretHint':
-    'A shared secret appended to the LobeHub webhook URL because BlueBubbles webhooks are not signed.',
+    'A shared secret used between LobeHub Desktop and the cloud webhook. Use the same value in the Desktop bridge config.',
   'channel.lark.description': 'Connect this assistant to Lark for private and group chats.',
   'channel.line.description':
     'Connect this assistant to LINE Messaging API for direct and group chats.',

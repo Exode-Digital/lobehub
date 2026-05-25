@@ -1,13 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ImessageClientFactory, imessageTestInternals } from './client';
+import { ImessageClientFactory } from './client';
 
-const fetchSpy = vi.spyOn(globalThis, 'fetch');
+const mockExecuteToolCall = vi.hoisted(() => vi.fn());
+
+vi.mock('@/server/services/toolExecution/deviceProxy', () => ({
+  deviceProxy: {
+    executeToolCall: mockExecuteToolCall,
+  },
+}));
+
+vi.mock('@/server/services/gateway/runtimeStatus', () => ({
+  BOT_RUNTIME_STATUSES: {
+    connected: 'connected',
+    disconnected: 'disconnected',
+    failed: 'failed',
+    starting: 'starting',
+  },
+  getRuntimeStatusErrorMessage: (e: unknown) => (e instanceof Error ? e.message : 'unknown'),
+  updateBotRuntimeStatus: vi.fn().mockResolvedValue(undefined),
+}));
 
 const APPLICATION_ID = 'home-mac-mini';
 const credentials = {
-  password: 'server-password',
-  serverUrl: 'https://bluebubbles.example.com',
+  desktopDeviceId: 'desktop-device-1',
   webhookSecret: 'shared-secret',
 };
 
@@ -19,77 +35,64 @@ const createClient = (settings: Record<string, unknown> = {}) =>
       platform: 'imessage',
       settings,
     },
-    { appUrl: 'https://lobehub.example.com' },
+    { appUrl: 'https://lobehub.example.com', userId: 'user-1' },
   );
 
 beforeEach(() => {
-  vi.mock('@/server/services/gateway/runtimeStatus', () => ({
-    BOT_RUNTIME_STATUSES: {
-      connected: 'connected',
-      disconnected: 'disconnected',
-      failed: 'failed',
-      starting: 'starting',
-    },
-    getRuntimeStatusErrorMessage: (e: unknown) => (e instanceof Error ? e.message : 'unknown'),
-    updateBotRuntimeStatus: vi.fn().mockResolvedValue(undefined),
-  }));
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
-  fetchSpy.mockReset();
+  mockExecuteToolCall.mockReset();
 });
 
 describe('ImessageWebhookClient', () => {
-  it('builds a webhook URL with the shared secret', () => {
-    expect(
-      imessageTestInternals.buildWebhookUrl(
-        'https://lobehub.example.com',
-        APPLICATION_ID,
-        'shared-secret',
-      ),
-    ).toBe(
-      'https://lobehub.example.com/api/agent/webhooks/imessage/home-mac-mini?secret=shared-secret',
-    );
-  });
-
   it('extractChatId strips the iMessage thread prefix without changing the chat guid', () => {
     const client = createClient();
     expect(client.extractChatId('imessage:iMessage;-;abc:def')).toBe('iMessage;-;abc:def');
   });
 
-  it('createAdapter wires credentials into the SDK adapter', () => {
+  it('createAdapter wires the Desktop bridge transport into the SDK adapter', () => {
     const client = createClient({ userId: 'operator@example.com' });
     const adapter = client.createAdapter();
     expect(adapter.imessage).toBeDefined();
     expect((adapter.imessage as any).botUserId).toBe('operator@example.com');
   });
 
-  it('messenger.createMessage sends text through BlueBubbles', async () => {
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({ data: { guid: 'sent-1', text: 'hello' } }), { status: 200 }),
-    );
+  it('messenger.createMessage sends text through the Desktop bridge', async () => {
+    mockExecuteToolCall.mockResolvedValueOnce({
+      content: JSON.stringify({ guid: 'sent-1', text: 'hello' }),
+      success: true,
+    });
 
     const client = createClient();
     const messenger = client.getMessenger('imessage:iMessage;-;chat-1');
     await messenger.createMessage('hello');
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://bluebubbles.example.com/api/v1/message/text?password=server-password',
+    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+      { deviceId: 'desktop-device-1', userId: 'user-1' },
+      {
+        apiName: 'imessage.sendText',
+        arguments: JSON.stringify({
+          applicationId: APPLICATION_ID,
+          chatGuid: 'iMessage;-;chat-1',
+          message: 'hello',
+          options: {},
+        }),
+        identifier: 'imessage',
+      },
+      60_000,
     );
-    const body = JSON.parse(init.body as string);
-    expect(body.chatGuid).toBe('iMessage;-;chat-1');
-    expect(body.message).toBe('hello');
   });
 
-  it('extractFiles downloads BlueBubbles attachments from merged message attachments', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(Buffer.from('image-bytes'), {
-        headers: { 'Content-Type': 'image/png' },
-        status: 200,
+  it('extractFiles downloads BlueBubbles attachments through the Desktop bridge', async () => {
+    mockExecuteToolCall.mockResolvedValueOnce({
+      content: JSON.stringify({
+        data: Buffer.from('image-bytes').toString('base64'),
+        mimeType: 'image/png',
       }),
-    );
+      success: true,
+    });
 
     const client = createClient();
     const sources = await (client as any).extractFiles({
@@ -113,8 +116,16 @@ describe('ImessageWebhookClient', () => {
     expect(sources[0].name).toBe('photo.png');
     expect(sources[0].mimeType).toBe('image/png');
     expect(sources[0].buffer.toString()).toBe('image-bytes');
-    expect(fetchSpy.mock.calls[0][0]).toBe(
-      'https://bluebubbles.example.com/api/v1/attachment/att-1/download?password=server-password&original=true',
+    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+      { deviceId: 'desktop-device-1', userId: 'user-1' },
+      expect.objectContaining({
+        apiName: 'imessage.downloadAttachment',
+        arguments: JSON.stringify({
+          applicationId: APPLICATION_ID,
+          guid: 'att-1',
+        }),
+      }),
+      60_000,
     );
   });
 
@@ -131,64 +142,41 @@ describe('ImessageWebhookClient', () => {
     ).toBe(true);
   });
 
-  it('start verifies BlueBubbles and registers the new-message webhook', async () => {
-    fetchSpy
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: {} }), { status: 200 }))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            data: {
-              events: ['new-message'],
-              id: 1,
-              url: 'https://lobehub.example.com/api/agent/webhooks/imessage/home-mac-mini?secret=shared-secret',
-            },
-          }),
-          { status: 200 },
-        ),
-      );
+  it('start verifies the Desktop bridge can reach BlueBubbles', async () => {
+    mockExecuteToolCall.mockResolvedValueOnce({
+      content: JSON.stringify({ ok: true }),
+      success: true,
+    });
 
     const client = createClient();
     await client.start();
 
-    expect(fetchSpy.mock.calls[0][0]).toBe(
-      'https://bluebubbles.example.com/api/v1/ping?password=server-password',
-    );
-    expect(fetchSpy.mock.calls[1][0]).toBe(
-      'https://bluebubbles.example.com/api/v1/webhook?password=server-password',
-    );
-    const webhookInit = fetchSpy.mock.calls[1]?.[1] as RequestInit;
-    const body = JSON.parse(webhookInit.body as string);
-    expect(body.events).toEqual(['new-message']);
-    expect(body.url).toBe(
-      'https://lobehub.example.com/api/agent/webhooks/imessage/home-mac-mini?secret=shared-secret',
+    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+      { deviceId: 'desktop-device-1', userId: 'user-1' },
+      {
+        apiName: 'imessage.ping',
+        arguments: JSON.stringify({ applicationId: APPLICATION_ID }),
+        identifier: 'imessage',
+      },
+      60_000,
     );
   });
 });
 
 describe('ImessageClientFactory.validateCredentials', () => {
-  it('reports missing fields without hitting the network', async () => {
+  it('reports missing fields without hitting the Desktop bridge', async () => {
     const factory = new ImessageClientFactory();
     const result = await factory.validateCredentials({});
     expect(result.valid).toBe(false);
     const fields = (result.errors ?? []).map((e) => e.field).sort();
-    expect(fields).toEqual(['applicationId', 'password', 'serverUrl', 'webhookSecret']);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fields).toEqual(['applicationId', 'desktopDeviceId', 'webhookSecret']);
+    expect(mockExecuteToolCall).not.toHaveBeenCalled();
   });
 
-  it('returns valid=true when BlueBubbles ping succeeds', async () => {
-    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ data: {} }), { status: 200 }));
+  it('returns valid=true when required Desktop bridge fields are present', async () => {
     const factory = new ImessageClientFactory();
     const result = await factory.validateCredentials(credentials, undefined, APPLICATION_ID);
     expect(result.valid).toBe(true);
-  });
-
-  it('surfaces BlueBubbles API errors', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 }),
-    );
-    const factory = new ImessageClientFactory();
-    const result = await factory.validateCredentials(credentials, undefined, APPLICATION_ID);
-    expect(result.valid).toBe(false);
-    expect(result.errors?.[0]?.message).toContain('Unauthorized');
+    expect(mockExecuteToolCall).not.toHaveBeenCalled();
   });
 });

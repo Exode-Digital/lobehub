@@ -22,5 +22,6 @@ export type {
   BlueBubblesWebhook,
   BlueBubblesWebhookEvent,
   ImessageAdapterConfig,
+  ImessageBridgeTransport,
   ImessageThreadId,
 } from './types';

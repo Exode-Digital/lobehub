@@ -23,6 +23,7 @@ import type {
   BlueBubblesMessage,
   BlueBubblesWebhookEvent,
   ImessageAdapterConfig,
+  ImessageBridgeTransport,
   ImessageThreadId,
 } from './types';
 
@@ -98,10 +99,11 @@ export function decodeImessageThreadId(threadId: string): ImessageThreadId {
 export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMessage> {
   readonly name = 'imessage';
 
-  private readonly api: BlueBubblesApiClient;
+  private readonly api?: BlueBubblesApiClient;
   private readonly botId: string;
   private readonly formatConverter: ImessageFormatConverter;
   private readonly knownDmThreads = new Map<string, boolean>();
+  private readonly transport?: ImessageBridgeTransport;
   private readonly webhookSecret: string;
 
   private _userName: string;
@@ -111,7 +113,17 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
   constructor(config: ImessageAdapterConfig) {
     if (!config.webhookSecret?.trim()) throw new Error('iMessage adapter requires webhookSecret');
 
-    this.api = new BlueBubblesApiClient(config);
+    if (config.transport) {
+      this.transport = config.transport;
+    } else {
+      if (!config.serverUrl?.trim()) throw new Error('iMessage adapter requires serverUrl');
+      if (!config.password?.trim()) throw new Error('iMessage adapter requires password');
+      this.api = new BlueBubblesApiClient({
+        password: config.password,
+        requestTimeoutMs: config.requestTimeoutMs,
+        serverUrl: config.serverUrl,
+      });
+    }
     this.webhookSecret = config.webhookSecret;
     this.botId = config.botUserId || 'imessage:self';
     this._userName = config.userName || 'imessage-bot';
@@ -130,7 +142,11 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
     this.chat = chat;
     this.logger = chat.getLogger(this.name);
     this._userName = chat.getUserName();
-    this.logger.info('Initialized iMessage adapter via BlueBubbles');
+    this.logger.info(
+      this.transport
+        ? 'Initialized iMessage adapter via Desktop BlueBubbles bridge'
+        : 'Initialized iMessage adapter via BlueBubbles',
+    );
   }
 
   async handleWebhook(request: Request, options?: WebhookOptions): Promise<Response> {
@@ -186,7 +202,9 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
   ): Promise<RawMessage<BlueBubblesMessage>> {
     const { chatGuid } = this.decodeThreadId(threadId);
     const text = this.formatConverter.renderPostable(message);
-    const raw = await this.api.sendText(chatGuid, text);
+    const raw = this.transport?.sendText
+      ? await this.transport.sendText(chatGuid, text)
+      : await this.getApi().sendText(chatGuid, text);
     return {
       id: raw.guid || raw.tempGuid || `local_${Date.now()}`,
       raw,
@@ -211,11 +229,17 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
     options?: FetchOptions,
   ): Promise<FetchResult<BlueBubblesMessage>> {
     const { chatGuid } = this.decodeThreadId(threadId);
-    const result = await this.api.getChatMessages(chatGuid, {
-      limit: options?.limit,
-      sort: 'DESC',
-      withParts: ['attachments'],
-    });
+    const result = this.transport?.getChatMessages
+      ? await this.transport.getChatMessages(chatGuid, {
+          limit: options?.limit,
+          sort: 'DESC',
+          withParts: ['attachments'],
+        })
+      : await this.getApi().getChatMessages(chatGuid, {
+          limit: options?.limit,
+          sort: 'DESC',
+          withParts: ['attachments'],
+        });
     return {
       messages: result.data.map((raw) => this.parseInbound(raw, threadId)).reverse(),
       nextCursor: undefined,
@@ -225,7 +249,9 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
   async fetchThread(threadId: string): Promise<ThreadInfo> {
     const { chatGuid } = this.decodeThreadId(threadId);
     try {
-      const chat = await this.api.getChat(chatGuid, ['participants']);
+      const chat = this.transport?.getChat
+        ? await this.transport.getChat(chatGuid, ['participants'])
+        : await this.getApi().getChat(chatGuid, ['participants']);
       const isDM = isDirectChat(chat);
       this.knownDmThreads.set(threadId, isDM);
       return {
@@ -261,7 +287,11 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
   async startTyping(threadId: string): Promise<void> {
     const { chatGuid } = this.decodeThreadId(threadId);
     try {
-      await this.api.startTyping(chatGuid);
+      if (this.transport?.startTyping) {
+        await this.transport.startTyping(chatGuid);
+      } else {
+        await this.getApi().startTyping(chatGuid);
+      }
     } catch (error) {
       this.logger.warn('startTyping failed for %s: %s', threadId, error);
     }
@@ -300,12 +330,25 @@ export class ImessageAdapter implements Adapter<ImessageThreadId, BlueBubblesMes
     if (!message?.guid) return message;
     if (message.chats?.[0]?.guid) return message;
 
+    if (!this.api) {
+      this.logger.warn(
+        'iMessage bridge webhook message=%s did not include chat data; configure Desktop bridge enrichment',
+        message.guid,
+      );
+      return message;
+    }
+
     try {
       return await this.api.getMessage(message.guid, ['chats', 'attachments']);
     } catch (error) {
       this.logger.warn('Failed to enrich iMessage webhook message=%s: %s', message.guid, error);
       return message;
     }
+  }
+
+  private getApi(): BlueBubblesApiClient {
+    if (!this.api) throw new Error('BlueBubbles API is not available in Desktop bridge mode');
+    return this.api;
   }
 
   private parseInbound(message: BlueBubblesMessage, threadId: string): Message<BlueBubblesMessage> {

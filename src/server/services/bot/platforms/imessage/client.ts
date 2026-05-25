@@ -1,5 +1,4 @@
 import {
-  BlueBubblesApiClient,
   type BlueBubblesAttachment,
   type BlueBubblesOutboundAttachment,
   createImessageAdapter,
@@ -29,38 +28,29 @@ import {
   type ValidationResult,
 } from '../types';
 import { formatUsageStats } from '../utils';
+import { ImessageDesktopBridgeApi } from './desktopBridge';
 
 const log = debug('bot-platform:imessage:bot');
 
 interface ImessageCredentials {
-  password: string;
-  serverUrl: string;
+  desktopDeviceId: string;
   webhookSecret: string;
 }
 
 function resolveCredentials(credentials: Record<string, string>): ImessageCredentials {
-  const serverUrl = credentials.serverUrl?.trim();
-  const password = credentials.password?.trim();
+  const desktopDeviceId = credentials.desktopDeviceId?.trim();
   const webhookSecret = credentials.webhookSecret?.trim();
 
-  if (!serverUrl) throw new Error('BlueBubbles Server URL is required');
-  if (!password) throw new Error('BlueBubbles Password is required');
+  if (!desktopDeviceId) throw new Error('Desktop Device ID is required');
   if (!webhookSecret) throw new Error('Webhook Secret is required');
 
-  return { password, serverUrl, webhookSecret };
+  return { desktopDeviceId, webhookSecret };
 }
 
 function decodeThread(platformThreadId: string): string {
   return platformThreadId.startsWith('imessage:')
     ? platformThreadId.slice('imessage:'.length)
     : platformThreadId;
-}
-
-function buildWebhookUrl(appUrl: string, applicationId: string, webhookSecret: string): string {
-  const baseUrl = appUrl.endsWith('/') ? appUrl : `${appUrl}/`;
-  const url = new URL(`api/agent/webhooks/imessage/${encodeURIComponent(applicationId)}`, baseUrl);
-  url.searchParams.set('secret', webhookSecret);
-  return url.toString();
 }
 
 function toBlueBubblesAttachment(attachment: BotMessageAttachment): BlueBubblesOutboundAttachment {
@@ -76,21 +66,30 @@ class ImessageWebhookClient implements PlatformClient {
   readonly id = 'imessage';
   readonly applicationId: string;
 
-  private api: BlueBubblesApiClient;
+  private bridge: ImessageDesktopBridgeApi;
   private config: BotProviderConfig;
-  private context: BotPlatformRuntimeContext;
   private credentials: ImessageCredentials;
 
   constructor(config: BotProviderConfig, context: BotPlatformRuntimeContext) {
     this.config = config;
-    this.context = context;
     this.applicationId = config.applicationId;
     this.credentials = resolveCredentials(config.credentials);
-    this.api = new BlueBubblesApiClient(this.credentials);
+    if (!context.userId?.trim()) {
+      throw new Error('User ID is required for iMessage Desktop bridge');
+    }
+    this.bridge = new ImessageDesktopBridgeApi({
+      applicationId: this.applicationId,
+      deviceId: this.credentials.desktopDeviceId,
+      userId: context.userId,
+    });
   }
 
   async start(): Promise<void> {
-    log('Starting iMessage appId=%s', this.applicationId);
+    log(
+      'Starting iMessage Desktop bridge appId=%s deviceId=%s',
+      this.applicationId,
+      this.credentials.desktopDeviceId,
+    );
     await updateBotRuntimeStatus({
       applicationId: this.applicationId,
       platform: this.id,
@@ -98,17 +97,7 @@ class ImessageWebhookClient implements PlatformClient {
     });
 
     try {
-      await this.api.ping();
-      if (!this.context.appUrl?.trim()) {
-        throw new Error('APP_URL is required to register the BlueBubbles webhook');
-      }
-
-      const webhookUrl = buildWebhookUrl(
-        this.context.appUrl,
-        this.applicationId,
-        this.credentials.webhookSecret,
-      );
-      await this.api.registerWebhook(webhookUrl, ['new-message']);
+      await this.bridge.ping();
 
       await updateBotRuntimeStatus({
         applicationId: this.applicationId,
@@ -116,7 +105,7 @@ class ImessageWebhookClient implements PlatformClient {
         status: BOT_RUNTIME_STATUSES.connected,
       });
 
-      log('iMessage appId=%s ready, webhookUrl=%s', this.applicationId, webhookUrl);
+      log('iMessage Desktop bridge appId=%s ready', this.applicationId);
     } catch (error) {
       await updateBotRuntimeStatus({
         applicationId: this.applicationId,
@@ -140,8 +129,14 @@ class ImessageWebhookClient implements PlatformClient {
   createAdapter(): Record<string, any> {
     return {
       imessage: createImessageAdapter({
-        ...this.credentials,
         botUserId: this.config.settings?.userId as string | undefined,
+        transport: {
+          getChat: this.bridge.getChat,
+          getChatMessages: this.bridge.getChatMessages,
+          sendText: this.bridge.sendText,
+          startTyping: this.bridge.startTyping,
+        },
+        webhookSecret: this.credentials.webhookSecret,
       }),
     };
   }
@@ -154,11 +149,11 @@ class ImessageWebhookClient implements PlatformClient {
         const attachments = typeof content === 'string' ? undefined : content.attachments;
 
         if (text.trim()) {
-          await this.api.sendText(chatGuid, text);
+          await this.bridge.sendText(chatGuid, text);
         }
 
         for (const attachment of attachments ?? []) {
-          await this.api.sendAttachment(chatGuid, toBlueBubblesAttachment(attachment));
+          await this.bridge.sendAttachment(chatGuid, toBlueBubblesAttachment(attachment));
         }
       },
       editMessage: async (_messageId, content) => {
@@ -167,7 +162,7 @@ class ImessageWebhookClient implements PlatformClient {
       removeReaction: () => Promise.resolve(),
       triggerTyping: async () => {
         try {
-          await this.api.startTyping(chatGuid);
+          await this.bridge.startTyping(chatGuid);
         } catch (error) {
           log('triggerTyping failed: %O', error);
         }
@@ -193,7 +188,7 @@ class ImessageWebhookClient implements PlatformClient {
     const results = await Promise.all(
       candidates.map(async ({ guid, raw }): Promise<AttachmentSource | undefined> => {
         try {
-          const downloaded = await this.api.downloadAttachment(guid);
+          const downloaded = await this.bridge.downloadAttachment(guid);
           return {
             buffer: downloaded.buffer,
             mimeType: downloaded.mimeType ?? raw.mimeType ?? 'application/octet-stream',
@@ -240,11 +235,8 @@ export class ImessageClientFactory extends ClientFactory {
     applicationId?: string,
   ): Promise<ValidationResult> {
     const errors: Array<{ field: string; message: string }> = [];
-    if (!credentials.serverUrl?.trim()) {
-      errors.push({ field: 'serverUrl', message: 'BlueBubbles Server URL is required' });
-    }
-    if (!credentials.password?.trim()) {
-      errors.push({ field: 'password', message: 'BlueBubbles Password is required' });
+    if (!credentials.desktopDeviceId?.trim()) {
+      errors.push({ field: 'desktopDeviceId', message: 'Desktop Device ID is required' });
     }
     if (!credentials.webhookSecret?.trim()) {
       errors.push({ field: 'webhookSecret', message: 'Webhook Secret is required' });
@@ -254,25 +246,10 @@ export class ImessageClientFactory extends ClientFactory {
     }
     if (errors.length > 0) return { errors, valid: false };
 
-    try {
-      const api = new BlueBubblesApiClient({
-        password: credentials.password,
-        serverUrl: credentials.serverUrl,
-      });
-      await api.ping();
-      return { valid: true };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to authenticate with BlueBubbles';
-      return {
-        errors: [{ field: 'serverUrl', message }],
-        valid: false,
-      };
-    }
+    return { valid: true };
   }
 }
 
 export const imessageTestInternals = {
-  buildWebhookUrl,
   decodeThread,
 };

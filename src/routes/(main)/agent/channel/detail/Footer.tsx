@@ -85,7 +85,6 @@ const Footer = memo<FooterProps>(
     const origin = useAppOrigin();
     const platformId = platformDef.id;
     const applicationId = AntdForm.useWatch('applicationId', form);
-    const imessageWebhookSecret = AntdForm.useWatch(['credentials', 'webhookSecret'], form);
 
     const settingsConnectionMode = AntdForm.useWatch(['settings', 'connectionMode'], form);
 
@@ -122,12 +121,8 @@ const Footer = memo<FooterProps>(
       const path = applicationId
         ? `/api/agent/webhooks/${platformId}/${applicationId}`
         : `/api/agent/webhooks/${platformId}`;
-      const url = `${origin}${path}`;
-      if (platformId !== 'imessage' || !imessageWebhookSecret) return url;
-
-      const search = new URLSearchParams({ secret: imessageWebhookSecret });
-      return `${url}?${search.toString()}`;
-    }, [applicationId, imessageWebhookSecret, origin, platformId]);
+      return `${origin}${path}`;
+    }, [applicationId, origin, platformId]);
 
     return (
       <div className={styles.bottom}>

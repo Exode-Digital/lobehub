@@ -36,9 +36,10 @@ import type {
   UnpinMessageState,
 } from '@lobechat/builtin-tool-message/executionRuntime';
 import type {
-  BlueBubblesApiClient,
   BlueBubblesChat,
   BlueBubblesMessage,
+  BlueBubblesOutboundAttachment,
+  BlueBubblesQueryResult,
 } from '@lobechat/chat-adapter-imessage';
 import { resolveAttachmentName } from '@lobechat/chat-adapter-imessage';
 
@@ -73,6 +74,30 @@ function chatName(chat: BlueBubblesChat): string {
   return chat.displayName || chat.chatIdentifier || chat.guid;
 }
 
+interface ImessageMessageApi {
+  getChat: (guid: string, withParts?: string[]) => Promise<BlueBubblesChat>;
+  getChatMessages: (
+    chatGuid: string,
+    options?: {
+      after?: number | string;
+      before?: number | string;
+      limit?: number;
+      offset?: number;
+      sort?: 'ASC' | 'DESC';
+      withParts?: string[];
+    },
+  ) => Promise<BlueBubblesQueryResult<BlueBubblesMessage>>;
+  queryChats: (body: Record<string, unknown>) => Promise<BlueBubblesQueryResult<BlueBubblesChat>>;
+  queryMessages: (
+    body: Record<string, unknown>,
+  ) => Promise<BlueBubblesQueryResult<BlueBubblesMessage>>;
+  sendAttachment: (
+    chatGuid: string,
+    attachment: BlueBubblesOutboundAttachment,
+  ) => Promise<BlueBubblesMessage>;
+  sendText: (chatGuid: string, message: string) => Promise<BlueBubblesMessage>;
+}
+
 /**
  * iMessage message-tool adapter backed by BlueBubbles.
  *
@@ -80,7 +105,7 @@ function chatName(chat: BlueBubblesChat): string {
  * (also exposed as `imessage:<chatGuid>` in inbound bot thread IDs).
  */
 export class ImessageMessageService implements MessageRuntimeService {
-  constructor(private api: BlueBubblesApiClient) {}
+  constructor(private api: ImessageMessageApi) {}
 
   sendMessage = async (params: SendMessageParams): Promise<SendMessageState> => {
     let lastMessage: BlueBubblesMessage | undefined;

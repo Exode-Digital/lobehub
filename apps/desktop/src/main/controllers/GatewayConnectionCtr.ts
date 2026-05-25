@@ -7,6 +7,7 @@ import type { AgentRunRequestMessage } from '@lobechat/device-gateway-client';
 import type { GatewayConnectionStatus } from '@lobechat/electron-client-ipc';
 
 import GatewayConnectionService from '@/services/gatewayConnectionSrv';
+import ImessageBridgeService from '@/services/imessageBridgeSrv';
 
 import HeterogeneousAgentCtr from './HeterogeneousAgentCtr';
 import { ControllerModule, IpcMethod } from './index';
@@ -84,6 +85,10 @@ export default class GatewayConnectionCtr extends ControllerModule {
 
   private get shellCommandCtr() {
     return this.app.getController(ShellCommandCtr);
+  }
+
+  private get imessageBridgeSrv() {
+    return this.app.getService(ImessageBridgeService);
   }
 
   private get heterogeneousAgentCtr() {
@@ -214,36 +219,51 @@ export default class GatewayConnectionCtr extends ControllerModule {
     const methodMap: Record<string, () => Promise<unknown>> = {
       editFile,
       globFiles,
-      grepContent: () => this.localFileCtr.handleGrepContent(args),
+      'grepContent': () => this.localFileCtr.handleGrepContent(args),
       listFiles,
       moveFiles,
       readFile,
       searchFiles,
       writeFile,
 
-      getCommandOutput: () => this.shellCommandCtr.handleGetCommandOutput(args),
-      killCommand: () => this.shellCommandCtr.handleKillCommand(args),
-      runCommand: () => this.shellCommandCtr.handleRunCommand(args),
+      'getCommandOutput': () => this.shellCommandCtr.handleGetCommandOutput(args),
+      'killCommand': () => this.shellCommandCtr.handleKillCommand(args),
+      'runCommand': () => this.shellCommandCtr.handleRunCommand(args),
+
+      'imessage.downloadAttachment': () =>
+        this.imessageBridgeSrv.handleGatewayToolCall('downloadAttachment', args),
+      'imessage.getChat': () => this.imessageBridgeSrv.handleGatewayToolCall('getChat', args),
+      'imessage.getChatMessages': () =>
+        this.imessageBridgeSrv.handleGatewayToolCall('getChatMessages', args),
+      'imessage.ping': () => this.imessageBridgeSrv.handleGatewayToolCall('ping', args),
+      'imessage.queryChats': () => this.imessageBridgeSrv.handleGatewayToolCall('queryChats', args),
+      'imessage.queryMessages': () =>
+        this.imessageBridgeSrv.handleGatewayToolCall('queryMessages', args),
+      'imessage.sendAttachment': () =>
+        this.imessageBridgeSrv.handleGatewayToolCall('sendAttachment', args),
+      'imessage.sendText': () => this.imessageBridgeSrv.handleGatewayToolCall('sendText', args),
+      'imessage.startTyping': () =>
+        this.imessageBridgeSrv.handleGatewayToolCall('startTyping', args),
 
       // Legacy aliases — keep these so older Gateway versions sending the long
       // names continue to route correctly. `renameLocalFile` is also kept even
       // though the new surface drops rename (it's now handled by `moveFiles`).
-      editLocalFile: editFile,
-      globLocalFiles: globFiles,
-      listLocalFiles: listFiles,
-      moveLocalFiles: moveFiles,
-      readLocalFile: readFile,
-      renameLocalFile: () => this.localFileCtr.handleRenameFile(args),
-      searchLocalFiles: searchFiles,
-      writeLocalFile: writeFile,
+      'editLocalFile': editFile,
+      'globLocalFiles': globFiles,
+      'listLocalFiles': listFiles,
+      'moveLocalFiles': moveFiles,
+      'readLocalFile': readFile,
+      'renameLocalFile': () => this.localFileCtr.handleRenameFile(args),
+      'searchLocalFiles': searchFiles,
+      'writeLocalFile': writeFile,
 
       // Platform agent capability probing
-      checkPlatformCapability: () => this.checkPlatformCapability(args),
-      getAgentProfile: () => this.getAgentProfile(args),
+      'checkPlatformCapability': () => this.checkPlatformCapability(args),
+      'getAgentProfile': () => this.getAgentProfile(args),
 
       // Platform agent task execution (openclaw / hermes)
-      cancelHeteroTask: () => this.cancelHeteroTask(args),
-      runHeteroTask: () => this.runHeteroTask(args),
+      'cancelHeteroTask': () => this.cancelHeteroTask(args),
+      'runHeteroTask': () => this.runHeteroTask(args),
     };
 
     const handler = methodMap[apiName];

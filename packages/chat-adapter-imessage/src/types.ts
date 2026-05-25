@@ -11,8 +11,33 @@ export interface BlueBubblesApiConfig {
   serverUrl: string;
 }
 
-export interface ImessageAdapterConfig extends BlueBubblesApiConfig {
+export interface ImessageBridgeTransport {
+  getChat?: (guid: string, withParts?: string[]) => Promise<BlueBubblesChat>;
+  getChatMessages?: (
+    chatGuid: string,
+    options?: {
+      after?: number | string;
+      before?: number | string;
+      limit?: number;
+      offset?: number;
+      sort?: 'ASC' | 'DESC';
+      withParts?: string[];
+    },
+  ) => Promise<BlueBubblesQueryResult<BlueBubblesMessage>>;
+  sendText?: (
+    chatGuid: string,
+    message: string,
+    options?: BlueBubblesSendOptions,
+  ) => Promise<BlueBubblesMessage>;
+  startTyping?: (chatGuid: string) => Promise<void>;
+}
+
+export interface ImessageAdapterConfig {
   botUserId?: string;
+  password?: string;
+  requestTimeoutMs?: number;
+  serverUrl?: string;
+  transport?: ImessageBridgeTransport;
   userName?: string;
   /**
    * Shared secret appended to the LobeHub webhook URL. BlueBubbles webhooks are

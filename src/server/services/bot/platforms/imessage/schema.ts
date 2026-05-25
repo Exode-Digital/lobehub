@@ -9,19 +9,12 @@ export const schema: FieldSchema[] = [
     label: 'channel.credentials',
     properties: [
       {
-        key: 'serverUrl',
-        description: 'channel.imessage.serverUrlHint',
-        label: 'channel.imessage.serverUrl',
-        placeholder: 'https://bluebubbles.example.com',
+        key: 'desktopDeviceId',
+        description: 'channel.imessage.desktopDeviceIdHint',
+        label: 'channel.imessage.desktopDeviceId',
+        placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
         required: true,
         type: 'string',
-      },
-      {
-        key: 'password',
-        description: 'channel.imessage.passwordHint',
-        label: 'channel.imessage.password',
-        required: true,
-        type: 'password',
       },
       {
         key: 'webhookSecret',

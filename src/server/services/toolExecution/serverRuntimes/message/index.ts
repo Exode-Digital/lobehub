@@ -2,7 +2,6 @@ import { MessageToolIdentifier } from '@lobechat/builtin-tool-message';
 import type { BotProviderQuery } from '@lobechat/builtin-tool-message/executionRuntime';
 import { MessageExecutionRuntime } from '@lobechat/builtin-tool-message/executionRuntime';
 import { LarkApiClient } from '@lobechat/chat-adapter-feishu';
-import { BlueBubblesApiClient } from '@lobechat/chat-adapter-imessage';
 import { QQApiClient } from '@lobechat/chat-adapter-qq';
 import { WechatApiClient } from '@lobechat/chat-adapter-wechat';
 import { TRPCError } from '@trpc/server';
@@ -28,6 +27,7 @@ import { platformRegistry } from '@/server/services/bot/platforms';
 import { DiscordApi } from '@/server/services/bot/platforms/discord/api';
 import { DiscordMessageService } from '@/server/services/bot/platforms/discord/service';
 import { FeishuMessageService } from '@/server/services/bot/platforms/feishu/service';
+import { ImessageDesktopBridgeApi } from '@/server/services/bot/platforms/imessage/desktopBridge';
 import { ImessageMessageService } from '@/server/services/bot/platforms/imessage/service';
 import { QQMessageService } from '@/server/services/bot/platforms/qq/service';
 import { SlackApi } from '@/server/services/bot/platforms/slack/api';
@@ -85,11 +85,12 @@ export const messageRuntime: ServerRuntimeRegistration = {
         );
       },
       imessage: async () => {
-        const { credentials } = await resolveCredentials(providerModel, 'imessage');
+        const { applicationId, credentials } = await resolveCredentials(providerModel, 'imessage');
         return new ImessageMessageService(
-          new BlueBubblesApiClient({
-            password: credentials.password,
-            serverUrl: credentials.serverUrl,
+          new ImessageDesktopBridgeApi({
+            applicationId,
+            deviceId: credentials.desktopDeviceId,
+            userId: context.userId!,
           }),
         );
       },
