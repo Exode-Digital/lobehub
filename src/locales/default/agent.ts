@@ -57,6 +57,20 @@ export default {
   'channel.feishu.webhookMigrationTitle': 'Consider migrating to WebSocket mode',
   'channel.feishu.webhookMigrationDesc':
     'WebSocket mode provides real-time event delivery without needing a public callback URL. To migrate, switch the Connection Mode to WebSocket in Advanced Settings. No additional configuration is needed on the Feishu/Lark Open Platform.',
+  'channel.imessage.description':
+    'Connect this assistant to iMessage through a self-hosted BlueBubbles server.',
+  'channel.imessage.applicationIdHint':
+    'A stable local identifier for this iMessage channel. It is used only in the LobeHub webhook path.',
+  'channel.imessage.applicationIdPlaceholder': 'e.g. home-mac-mini',
+  'channel.imessage.serverUrl': 'BlueBubbles Server URL',
+  'channel.imessage.serverUrlHint':
+    'Public HTTPS URL of your BlueBubbles server. LobeHub calls its REST API to send messages, read chats, and register webhooks.',
+  'channel.imessage.password': 'BlueBubbles Password',
+  'channel.imessage.passwordHint':
+    'The password configured in BlueBubbles Server. It will be encrypted and stored securely.',
+  'channel.imessage.webhookSecret': 'Webhook Secret',
+  'channel.imessage.webhookSecretHint':
+    'A shared secret appended to the LobeHub webhook URL because BlueBubbles webhooks are not signed.',
   'channel.lark.description': 'Connect this assistant to Lark for private and group chats.',
   'channel.line.description':
     'Connect this assistant to LINE Messaging API for direct and group chats.',
@@ -234,6 +248,8 @@ export default {
     'Enable Developer Mode (Settings → Advanced), then right-click your avatar → Copy User ID.',
   'channel.userIdHint.feishu':
     'Open your app on the Feishu / Lark Open Platform → Permissions, then look up your Open ID.',
+  'channel.userIdHint.imessage':
+    'Use your iMessage handle as seen in BlueBubbles, usually an email address or E.164 phone number.',
   'channel.userIdHint.line':
     'Open the LINE Developers Console → your channel → Basic settings tab, and copy "Your user ID" (starts with U, 33 chars).',
   'channel.userIdHint.qq': 'Your QQ number, shown on your QQ profile page.',

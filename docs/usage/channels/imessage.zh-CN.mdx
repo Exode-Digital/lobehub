@@ -1,0 +1,89 @@
+---
+title: 将 LobeHub 连接到 iMessage
+description: >-
+  了解如何通过自托管的 BlueBubbles Server，将 iMessage 账号连接到 LobeHub 代理。
+tags:
+  - iMessage
+  - BlueBubbles
+  - 消息渠道
+  - Bot 设置
+  - 集成
+---
+
+# 将 LobeHub 连接到 iMessage
+
+LobeHub 通过 [BlueBubbles](https://bluebubbles.app/) 接入 iMessage。BlueBubbles Server 运行在已登录 Messages 的 Mac 上，负责接收 macOS 的 iMessage 事件，并向 LobeHub 提供 REST API 和 webhook。
+
+## 前置条件
+
+- 一台已登录目标 Apple ID 的 Mac
+- 已安装并可被 LobeHub 通过 HTTPS 访问的 [BlueBubbles Server](https://bluebubbles.app/)
+- BlueBubbles API 密码
+- 可公网访问的 LobeHub `APP_URL`，用于接收 BlueBubbles webhook
+
+> **Private API 说明：** BlueBubbles 可以通过 AppleScript 发送基础文本和附件。输入状态、消息特效等高级能力依赖 BlueBubbles Private API，可能需要在 Mac 上关闭 SIP。LobeHub 的基础收发只依赖文本 / 附件能力。
+
+## 步骤 1：设置 BlueBubbles
+
+<Steps>
+  ### 安装 BlueBubbles Server
+
+  在承载 iMessage 账号的 Mac 上安装 BlueBubbles Server，并确保这台 Mac 保持唤醒和联网。
+
+  ### 开启 API 访问
+
+  在 BlueBubbles Server 中设置一个强密码。LobeHub 调用 BlueBubbles REST API 时会使用这个密码。
+
+  ### 暴露服务地址
+
+  为 BlueBubbles Server 配置公网 HTTPS 地址。可以使用 BlueBubbles 内置代理、自建反向代理，或隧道服务。
+</Steps>
+
+## 步骤 2：在 LobeHub 配置 iMessage
+
+<Steps>
+  ### 打开渠道设置
+
+  在 LobeHub 中进入代理设置，选择 **渠道**，然后点击 **iMessage**。
+
+  ### 填写凭据
+
+  1. **Application ID** — 填一个稳定的本地标识，例如 `home-mac-mini`。它只用于 LobeHub webhook 路径。
+  2. **BlueBubbles Server URL** — BlueBubbles Server 的公网 HTTPS 地址。
+  3. **BlueBubbles Password** — BlueBubbles Server 中配置的 API 密码。
+  4. **Webhook Secret** — 生成一个随机共享密钥。BlueBubbles webhook 本身没有签名，LobeHub 会把这个密钥附加到 webhook URL 上做轻量校验。
+
+  ### 保存配置
+
+  点击 **保存**。LobeHub 会通过 `GET /api/v1/ping` 验证 BlueBubbles 连接，并展示带 `secret` 查询参数的 Webhook URL。
+</Steps>
+
+## 步骤 3：注册 Webhook
+
+点击 **连接** 时，LobeHub 会自动在 BlueBubbles 中注册 `new-message` 事件 webhook。
+
+如果你想手动注册，可以打开 BlueBubbles Server → **Webhooks**，添加：
+
+- **URL：** LobeHub 页面显示的 Webhook URL
+- **Events：** `new-message`
+
+## 步骤 4：测试 Bot
+
+向 BlueBubbles Mac 上登录的 Apple ID 或手机号发送一条 iMessage。LobeHub 应该会收到 `new-message` webhook，运行代理，并在同一个 iMessage 会话中回复。
+
+## 功能说明
+
+- **Markdown** — iMessage 接收纯文本。LobeHub 会在发送最终回复前移除 Markdown 标记。
+- **消息编辑** — iMessage 回复会作为新消息发送，LobeHub 会跳过中间步骤的进度编辑。
+- **附件** — 入站和出站附件通过 BlueBubbles 附件 API 支持。超大文件会受到 BlueBubbles 服务和代理 / 隧道限制影响。
+- **输入状态** — 如果 BlueBubbles Private API 可用，会尝试发送 typing；不可用时会静默跳过，不影响正常回复。
+- **群聊** — BlueBubbles 消息事件中包含 `chatGuid` 时可支持 iMessage 群聊。限制群组访问时，请把 `chatGuid` 填入允许频道。
+- **防回环** — 由 Mac 账号自己发出的消息会被忽略，避免机器人回复自己的回复。
+
+## 故障排查
+
+- **保存 / 测试时报认证错误。** 重新检查 BlueBubbles URL 和密码，密码必须与 BlueBubbles Server 设置完全一致。
+- **Bot 完全不回复。** 确认 BlueBubbles 中存在 webhook，且 URL 包含 LobeHub 页面展示的 `?secret=...`。
+- **Webhook 返回 401。** URL 中的 webhook secret 与 LobeHub 保存的不一致。
+- **消息能发出，但 typing 失败。** 通常是 BlueBubbles Private API 未开启；这不影响普通回复。
+- **附件失败。** 检查隧道 / 反向代理的文件大小限制，并确认附件已在 Mac 上下载完成。

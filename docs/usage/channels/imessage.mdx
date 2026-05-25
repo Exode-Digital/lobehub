@@ -1,0 +1,90 @@
+---
+title: Connect LobeHub to iMessage
+description: >-
+  Learn how to connect an iMessage account to your LobeHub agent through a
+  self-hosted BlueBubbles server.
+tags:
+  - iMessage
+  - BlueBubbles
+  - Message Channels
+  - Bot Setup
+  - Integration
+---
+
+# Connect LobeHub to iMessage
+
+LobeHub connects to iMessage through [BlueBubbles](https://bluebubbles.app/), a self-hosted server that runs on a Mac signed into Messages. BlueBubbles receives iMessage events from macOS and exposes REST APIs/webhooks that LobeHub can use for bot replies.
+
+## Prerequisites
+
+- A Mac signed into the Apple ID you want the bot to use
+- [BlueBubbles Server](https://bluebubbles.app/) installed and reachable from LobeHub over HTTPS
+- BlueBubbles API password
+- A public LobeHub `APP_URL` so BlueBubbles can deliver webhooks
+
+> **Private API note:** BlueBubbles can send basic text and attachments through AppleScript. Advanced iMessage features such as typing indicators and message effects require the BlueBubbles Private API, which may require disabling SIP on the Mac. LobeHub only depends on basic text/attachment send and receive.
+
+## Step 1: Set Up BlueBubbles
+
+<Steps>
+  ### Install BlueBubbles Server
+
+  Install BlueBubbles Server on the Mac that will host the iMessage account. Keep the Mac awake and connected to the network.
+
+  ### Enable API access
+
+  In BlueBubbles Server, set a strong server password. LobeHub uses this password when calling BlueBubbles REST endpoints.
+
+  ### Expose the server
+
+  Configure a public HTTPS URL for the BlueBubbles server. You can use BlueBubbles' built-in proxy options, your own reverse proxy, or a tunnel.
+</Steps>
+
+## Step 2: Configure iMessage in LobeHub
+
+<Steps>
+  ### Open Channel Settings
+
+  In LobeHub, navigate to your agent's settings, select **Channels**, and choose **iMessage**.
+
+  ### Fill in the credentials
+
+  1. **Application ID** — choose a stable local identifier such as `home-mac-mini`. It is used only in the LobeHub webhook path.
+  2. **BlueBubbles Server URL** — the public HTTPS URL of your BlueBubbles server.
+  3. **BlueBubbles Password** — the API password configured in BlueBubbles Server.
+  4. **Webhook Secret** — generate a random shared secret. LobeHub appends it to the webhook URL because BlueBubbles webhooks are not signed.
+
+  ### Save Configuration
+
+  Click **Save**. LobeHub verifies the BlueBubbles server with `GET /api/v1/ping` and shows a webhook URL that includes the secret query parameter.
+</Steps>
+
+## Step 3: Register the Webhook
+
+When you click **Connect**, LobeHub automatically registers a BlueBubbles webhook for the `new-message` event using the displayed webhook URL.
+
+If you prefer to register it manually, open BlueBubbles Server → **Webhooks** and add:
+
+- **URL:** the Webhook URL shown in LobeHub
+- **Events:** `new-message`
+
+## Step 4: Test the Bot
+
+Send an iMessage to the Apple ID or phone number signed into the BlueBubbles Mac. LobeHub should receive the `new-message` webhook, run the agent, and reply in the same iMessage conversation.
+
+## Feature Notes
+
+- **Markdown** — iMessage receives plain text. LobeHub strips Markdown markup before sending final replies.
+- **Message editing** — iMessage replies are sent as new messages. LobeHub skips progress-message edits.
+- **Attachments** — inbound and outbound attachments are supported through BlueBubbles attachment APIs. Very large files depend on your BlueBubbles server and tunnel limits.
+- **Typing indicators** — attempted when BlueBubbles Private API is available; otherwise they fail silently.
+- **Group chats** — group iMessage chats are supported when BlueBubbles includes the `chatGuid` in message events. Use the `chatGuid` as the allowed-channel ID when scoping group access.
+- **Loop prevention** — messages sent by the Mac account itself are ignored so the bot does not respond to its own replies.
+
+## Troubleshooting
+
+- **Save/Test fails with authentication errors.** Recheck the BlueBubbles URL and password. The password must match the BlueBubbles Server setting exactly.
+- **Bot never responds.** Confirm the webhook exists in BlueBubbles and points to the LobeHub URL including `?secret=...`.
+- **Webhook returns 401.** The webhook secret in the URL does not match the one saved in LobeHub.
+- **Messages send but typing indicator fails.** The BlueBubbles Private API is probably disabled. This does not block normal bot replies.
+- **Attachments fail.** Check file size limits on your tunnel/reverse proxy and confirm the BlueBubbles attachment has already downloaded on the Mac.
