@@ -90,6 +90,7 @@ export const SERVICE_MODEL_POLICIES = {
   followUpAction: policy({
     allow: LOW_LATENCY_JSON_ALLOW,
     deny: STRUCTURED_TASK_DENY,
+    invalidSelection: 'empty',
     mode: 'allowlist',
     source: 'chat',
   }),
@@ -107,6 +108,7 @@ export const SERVICE_MODEL_POLICIES = {
   inputCompletion: policy({
     allow: LOW_LATENCY_JSON_ALLOW,
     deny: STRUCTURED_TASK_DENY,
+    invalidSelection: 'empty',
     mode: 'allowlist',
     source: 'chat',
   }),
@@ -118,6 +120,7 @@ export const SERVICE_MODEL_POLICIES = {
   promptRewrite: policy({
     allow: FAST_TEXT_ALLOW,
     deny: TEXT_TASK_DENY,
+    invalidSelection: 'empty',
     mode: 'allowlist',
     source: 'chat',
   }),

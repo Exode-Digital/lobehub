@@ -1,6 +1,8 @@
 import { type LobeAgentChatConfig } from '@lobechat/types';
 import { useMemo } from 'react';
 
+import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
+import { resolveClientServiceModelConfig } from '@/services/serviceModelPolicy/client';
 import { useFollowUpActionStore } from '@/store/followUpAction';
 import { useUserStore } from '@/store/user';
 import { systemAgentSelectors } from '@/store/user/slices/settings/selectors/systemAgent';
@@ -35,21 +37,29 @@ export const useChatFollowUp = ({
   topicId,
 }: UseChatFollowUpParams): ConversationHooks => {
   const globalConfig = useUserStore(systemAgentSelectors.followUpAction);
+  const enabledChatModels = useEnabledChatModels();
+  const resolvedConfig = useMemo(() => {
+    if (!globalConfig.model || !globalConfig.provider) return;
+
+    return resolveClientServiceModelConfig('followUpAction', globalConfig, {
+      chatList: enabledChatModels,
+    });
+  }, [enabledChatModels, globalConfig.model, globalConfig.provider]);
 
   const effective = useMemo(() => {
     const globalEnabled = globalConfig.enabled === true;
-    const hasValidModel = !!globalConfig.model && !!globalConfig.provider;
+    const hasValidModel = !!resolvedConfig?.model && !!resolvedConfig.provider;
     const perAgentEnabled = agentChatConfig?.enableFollowUpChips === true;
     return globalEnabled && hasValidModel && perAgentEnabled;
   }, [
     globalConfig.enabled,
-    globalConfig.model,
-    globalConfig.provider,
+    resolvedConfig?.model,
+    resolvedConfig?.provider,
     agentChatConfig?.enableFollowUpChips,
   ]);
 
   return useMemo<ConversationHooks>(() => {
-    if (!effective || !conversationKey || !topicId) return {};
+    if (!effective || !conversationKey || !topicId || !resolvedConfig) return {};
 
     const clearSlot = () => useFollowUpActionStore.getState().clear(conversationKey);
 
@@ -58,7 +68,7 @@ export const useChatFollowUp = ({
         if (reason === 'stopped') return;
         await useFollowUpActionStore.getState().fetchFor(conversationKey, {
           hint: { kind: 'chat' },
-          modelConfig: { model: globalConfig.model, provider: globalConfig.provider },
+          modelConfig: { model: resolvedConfig.model, provider: resolvedConfig.provider },
           threadId,
           topicId,
         });
@@ -73,5 +83,5 @@ export const useChatFollowUp = ({
         clearSlot();
       },
     };
-  }, [effective, conversationKey, globalConfig.model, globalConfig.provider, threadId, topicId]);
+  }, [effective, conversationKey, resolvedConfig, threadId, topicId]);
 };

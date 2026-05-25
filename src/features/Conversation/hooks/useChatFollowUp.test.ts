@@ -2,16 +2,27 @@ import { type LobeAgentChatConfig } from '@lobechat/types';
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { useFollowUpActionStore } from '@/store/followUpAction';
 import { useUserStore } from '@/store/user';
+import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
 import { useChatFollowUp } from './useChatFollowUp';
 
 const VALID_GLOBAL = {
   enabled: true,
-  model: 'global-model',
-  provider: 'global-provider',
+  model: 'gpt-4o-mini',
+  provider: 'openai',
 };
+
+const ENABLED_CHAT_MODELS = [
+  {
+    children: [{ id: VALID_GLOBAL.model }],
+    id: VALID_GLOBAL.provider,
+    name: 'OpenAI',
+    source: 'builtin',
+  },
+] as EnabledProviderWithModels[];
 
 const VALID_AGENT: LobeAgentChatConfig = {
   enableFollowUpChips: true,
@@ -26,6 +37,10 @@ vi.mock('@/store/user', () => ({
   useUserStore: vi.fn(),
 }));
 
+vi.mock('@/hooks/useEnabledChatModels', () => ({
+  useEnabledChatModels: vi.fn(),
+}));
+
 describe('useChatFollowUp', () => {
   let fetchFor: ReturnType<typeof vi.fn>;
   let clear: ReturnType<typeof vi.fn>;
@@ -38,6 +53,7 @@ describe('useChatFollowUp', () => {
       fetchFor,
       clear,
     } as any);
+    (useEnabledChatModels as unknown as Mock).mockReturnValue(ENABLED_CHAT_MODELS);
 
     (useUserStore as unknown as Mock).mockImplementation((selector: any) =>
       selector({
@@ -48,6 +64,7 @@ describe('useChatFollowUp', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    (useEnabledChatModels as unknown as Mock).mockReset();
     (useUserStore as unknown as Mock).mockReset();
   });
 
@@ -123,6 +140,24 @@ describe('useChatFollowUp', () => {
     it('when per-agent enableFollowUpChips is false', () => {
       const { result } = renderWith({
         agentChatConfig: { enableFollowUpChips: false } as LobeAgentChatConfig,
+        conversationKey: CONVERSATION_KEY,
+        topicId: TOPIC_ID,
+      });
+      assertEmpty(result.current);
+    });
+
+    it('when no allowed follow-up model exists', () => {
+      (useEnabledChatModels as unknown as Mock).mockReturnValue([
+        {
+          children: [{ id: 'gpt-5-thinking' }],
+          id: 'openai',
+          name: 'OpenAI',
+          source: 'builtin',
+        },
+      ] as EnabledProviderWithModels[]);
+
+      const { result } = renderWith({
+        agentChatConfig: VALID_AGENT,
         conversationKey: CONVERSATION_KEY,
         topicId: TOPIC_ID,
       });
@@ -216,6 +251,31 @@ describe('useChatFollowUp', () => {
       const { result } = renderEnabled();
       await result.current.onAssistantTurnSettled?.('m', { reason: 'continued' });
       expect(fetchFor).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables after enabled chat models load', async () => {
+      (useEnabledChatModels as unknown as Mock).mockReturnValue([
+        {
+          children: [{ id: 'gpt-5-thinking' }],
+          id: 'openai',
+          name: 'OpenAI',
+          source: 'builtin',
+        },
+      ] as EnabledProviderWithModels[]);
+
+      const { rerender, result } = renderEnabled({ threadId: 'thread-1' });
+      expect(result.current.onAssistantTurnSettled).toBeUndefined();
+
+      (useEnabledChatModels as unknown as Mock).mockReturnValue(ENABLED_CHAT_MODELS);
+      rerender();
+
+      await result.current.onAssistantTurnSettled?.('m', { reason: 'completed' });
+      expect(fetchFor).toHaveBeenCalledWith(CONVERSATION_KEY, {
+        hint: { kind: 'chat' },
+        modelConfig: { model: VALID_GLOBAL.model, provider: VALID_GLOBAL.provider },
+        threadId: 'thread-1',
+        topicId: TOPIC_ID,
+      });
     });
 
     it('clear is scoped to the passed conversationKey — different keys do not collide', async () => {

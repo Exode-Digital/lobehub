@@ -22,6 +22,7 @@ import { usePasteFile, useUploadFiles } from '@/components/DragUploadZone';
 import { useEnterToSend } from '@/hooks/useEnterToSend';
 import { useIMECompositionEvent } from '@/hooks/useIMECompositionEvent';
 import { aiChatService } from '@/services/aiChat';
+import { resolveClientServiceModelConfig } from '@/services/serviceModelPolicy/client';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
@@ -227,7 +228,10 @@ const InputEditor = memo<{
       // mid-text causes nested editor updates that freeze the input
       if (afterText.trim()) return null;
 
-      const config = systemAgentSelectors.inputCompletion(useUserStore.getState());
+      const savedConfig = systemAgentSelectors.inputCompletion(useUserStore.getState());
+      const config = resolveClientServiceModelConfig('inputCompletion', savedConfig);
+      if (!config) return null;
+
       const context = getMessagesRef.current?.();
       const { messages, schema } = chainInputCompletion(input, afterText, context);
 

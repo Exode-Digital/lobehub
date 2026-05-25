@@ -96,6 +96,12 @@ describe('serviceModelPolicy', () => {
     });
   });
 
+  it('marks optional runtime policies as empty on invalid selection', () => {
+    expect(getServiceModelPolicy('followUpAction')?.invalidSelection).toBe('empty');
+    expect(getServiceModelPolicy('inputCompletion')?.invalidSelection).toBe('empty');
+    expect(getServiceModelPolicy('promptRewrite')?.invalidSelection).toBe('empty');
+  });
+
   it('keeps arbitrary custom models allowed when policy is undefined', () => {
     expect(
       isServiceModelCandidateAllowed(undefined, {
