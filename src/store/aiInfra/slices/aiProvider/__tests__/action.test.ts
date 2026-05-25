@@ -2,8 +2,13 @@ import * as runtimeModule from '@lobechat/model-runtime';
 import type { AIImageModelCard, EnabledAiModel, ModelParamsSchema, Pricing } from 'model-bank';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { EnabledProvider } from '@/types/aiProvider';
+import { AiProviderSourceEnum } from '@/types/aiProvider';
+
 import {
+  buildEmbeddingProviderModelLists,
   getChatModelList,
+  getEmbeddingModelList,
   getImageModelList,
   normalizeChatModel,
   normalizeImageModel,
@@ -210,6 +215,57 @@ describe('aiProvider action helpers', () => {
     it('returns empty array when provider has no image models', async () => {
       const result = await getImageModelList(imageModels, 'unknown');
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('getEmbeddingModelList', () => {
+    it('filters embedding models by provider', async () => {
+      const models = [
+        createChatModel({ id: 'gpt-4o-mini', providerId: 'openai', type: 'chat' }),
+        createChatModel({
+          id: 'text-embedding-3-small',
+          providerId: 'openai',
+          type: 'embedding',
+        }),
+        createChatModel({
+          id: 'text-embedding-3-large',
+          providerId: 'openai',
+          type: 'embedding',
+        }),
+        createChatModel({ id: 'embed-other', providerId: 'cohere', type: 'embedding' }),
+      ];
+
+      const result = await getEmbeddingModelList(models, 'openai');
+
+      expect(result.map((model) => model.id)).toEqual([
+        'text-embedding-3-small',
+        'text-embedding-3-large',
+      ]);
+    });
+
+    it('does not include providers that only have disabled embedding models', async () => {
+      const providers: EnabledProvider[] = [
+        { id: 'openai', name: 'OpenAI', source: AiProviderSourceEnum.Builtin },
+        { id: 'cohere', name: 'Cohere', source: AiProviderSourceEnum.Builtin },
+      ];
+      const builtinModels = [
+        createChatModel({ id: 'gpt-4o-mini', providerId: 'openai', type: 'chat' }),
+        createChatModel({
+          enabled: false,
+          id: 'text-embedding-3-small',
+          providerId: 'openai',
+          type: 'embedding',
+        }),
+        createChatModel({ id: 'embed-other', providerId: 'cohere', type: 'embedding' }),
+      ];
+      const enabledAiModels = builtinModels.filter((model) => model.enabled);
+
+      const result = await buildEmbeddingProviderModelLists(providers, enabledAiModels);
+
+      expect(result.map((provider) => provider.id)).toEqual(['cohere']);
+      expect(result.map((provider) => provider.children.map((model) => model.id))).toEqual([
+        ['embed-other'],
+      ]);
     });
   });
 });
