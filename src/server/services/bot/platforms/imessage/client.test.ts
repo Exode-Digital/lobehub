@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ImessageClientFactory } from './client';
 
-const mockExecuteToolCall = vi.hoisted(() => vi.fn());
+const mockExecuteMessageApi = vi.hoisted(() => vi.fn());
 
 vi.mock('@/server/services/toolExecution/deviceProxy', () => ({
   deviceProxy: {
-    executeToolCall: mockExecuteToolCall,
+    executeMessageApi: mockExecuteMessageApi,
   },
 }));
 
@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  mockExecuteToolCall.mockReset();
+  mockExecuteMessageApi.mockReset();
 });
 
 describe('ImessageWebhookClient', () => {
@@ -60,7 +60,7 @@ describe('ImessageWebhookClient', () => {
   });
 
   it('messenger.createMessage sends text through the Desktop bridge', async () => {
-    mockExecuteToolCall.mockResolvedValueOnce({
+    mockExecuteMessageApi.mockResolvedValueOnce({
       content: JSON.stringify({ guid: 'sent-1', text: 'hello' }),
       success: true,
     });
@@ -69,24 +69,24 @@ describe('ImessageWebhookClient', () => {
     const messenger = client.getMessenger('imessage:iMessage;-;chat-1');
     await messenger.createMessage('hello');
 
-    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+    expect(mockExecuteMessageApi).toHaveBeenCalledWith(
       { deviceId: 'desktop-device-1', userId: 'user-1' },
       {
-        apiName: 'imessage.sendText',
-        arguments: JSON.stringify({
+        apiName: 'sendText',
+        payload: {
           applicationId: APPLICATION_ID,
           chatGuid: 'iMessage;-;chat-1',
           message: 'hello',
           options: {},
-        }),
-        identifier: 'imessage',
+        },
+        platform: 'imessage',
       },
       60_000,
     );
   });
 
   it('extractFiles downloads BlueBubbles attachments through the Desktop bridge', async () => {
-    mockExecuteToolCall.mockResolvedValueOnce({
+    mockExecuteMessageApi.mockResolvedValueOnce({
       content: JSON.stringify({
         data: Buffer.from('image-bytes').toString('base64'),
         mimeType: 'image/png',
@@ -116,15 +116,16 @@ describe('ImessageWebhookClient', () => {
     expect(sources[0].name).toBe('photo.png');
     expect(sources[0].mimeType).toBe('image/png');
     expect(sources[0].buffer.toString()).toBe('image-bytes');
-    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+    expect(mockExecuteMessageApi).toHaveBeenCalledWith(
       { deviceId: 'desktop-device-1', userId: 'user-1' },
-      expect.objectContaining({
-        apiName: 'imessage.downloadAttachment',
-        arguments: JSON.stringify({
+      {
+        apiName: 'downloadAttachment',
+        payload: {
           applicationId: APPLICATION_ID,
           guid: 'att-1',
-        }),
-      }),
+        },
+        platform: 'imessage',
+      },
       60_000,
     );
   });
@@ -143,7 +144,7 @@ describe('ImessageWebhookClient', () => {
   });
 
   it('start verifies the Desktop bridge can reach BlueBubbles', async () => {
-    mockExecuteToolCall.mockResolvedValueOnce({
+    mockExecuteMessageApi.mockResolvedValueOnce({
       content: JSON.stringify({ ok: true }),
       success: true,
     });
@@ -151,12 +152,12 @@ describe('ImessageWebhookClient', () => {
     const client = createClient();
     await client.start();
 
-    expect(mockExecuteToolCall).toHaveBeenCalledWith(
+    expect(mockExecuteMessageApi).toHaveBeenCalledWith(
       { deviceId: 'desktop-device-1', userId: 'user-1' },
       {
-        apiName: 'imessage.ping',
-        arguments: JSON.stringify({ applicationId: APPLICATION_ID }),
-        identifier: 'imessage',
+        apiName: 'ping',
+        payload: { applicationId: APPLICATION_ID },
+        platform: 'imessage',
       },
       60_000,
     );
@@ -170,13 +171,13 @@ describe('ImessageClientFactory.validateCredentials', () => {
     expect(result.valid).toBe(false);
     const fields = (result.errors ?? []).map((e) => e.field).sort();
     expect(fields).toEqual(['applicationId', 'desktopDeviceId', 'webhookSecret']);
-    expect(mockExecuteToolCall).not.toHaveBeenCalled();
+    expect(mockExecuteMessageApi).not.toHaveBeenCalled();
   });
 
   it('returns valid=true when required Desktop bridge fields are present', async () => {
     const factory = new ImessageClientFactory();
     const result = await factory.validateCredentials(credentials, undefined, APPLICATION_ID);
     expect(result.valid).toBe(true);
-    expect(mockExecuteToolCall).not.toHaveBeenCalled();
+    expect(mockExecuteMessageApi).not.toHaveBeenCalled();
   });
 });

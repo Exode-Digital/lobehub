@@ -9,7 +9,7 @@ import type {
 
 import { deviceProxy } from '@/server/services/toolExecution/deviceProxy';
 
-const IMESSAGE_TOOL_TIMEOUT_MS = 60_000;
+const IMESSAGE_MESSAGE_API_TIMEOUT_MS = 60_000;
 
 interface ImessageDesktopBridgeOptions {
   applicationId: string;
@@ -95,17 +95,17 @@ export class ImessageDesktopBridgeApi {
   };
 
   private async call<T>(apiName: string, payload: Record<string, unknown>): Promise<T> {
-    const result = await deviceProxy.executeToolCall(
+    const result = await deviceProxy.executeMessageApi(
       { deviceId: this.deviceId, userId: this.userId },
       {
-        apiName: `imessage.${apiName}`,
-        arguments: JSON.stringify({
+        apiName,
+        payload: {
           applicationId: this.applicationId,
           ...payload,
-        }),
-        identifier: 'imessage',
+        },
+        platform: 'imessage',
       },
-      IMESSAGE_TOOL_TIMEOUT_MS,
+      IMESSAGE_MESSAGE_API_TIMEOUT_MS,
     );
 
     if (!result.success) {
