@@ -162,11 +162,11 @@ describe('ImessageBridgeService', () => {
     await service.stop();
   });
 
-  it('executes outbound iMessage sends from device-gateway tool calls', async () => {
+  it('executes outbound iMessage sends from device-gateway message API calls', async () => {
     const { service } = createService();
     await service.upsertConfig(config);
 
-    const result = await service.handleGatewayToolCall('sendText', {
+    const result = await service.handleGatewayMessageApi('sendText', {
       applicationId: 'home-mac-mini',
       chatGuid: 'iMessage;-;chat-1',
       message: 'hello',

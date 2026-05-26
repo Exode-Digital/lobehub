@@ -112,6 +112,11 @@ export default class GatewayConnectionCtr extends ControllerModule {
     // Wire up tool call handler
     srv.setToolCallHandler((apiName, args) => this.executeToolCall(apiName, args));
 
+    // Wire up message API handler
+    srv.setMessageApiHandler((platform, apiName, payload) =>
+      this.executeMessageApi(platform, apiName, payload),
+    );
+
     // Wire up agent run handler
     srv.setAgentRunHandler((request) => this.executeAgentRun(request));
 
@@ -214,7 +219,6 @@ export default class GatewayConnectionCtr extends ControllerModule {
     const methodMap = {
       ...this.getLocalFileToolHandlers(args),
       ...this.getShellCommandToolHandlers(args),
-      ...this.getImessageToolHandlers(args),
       ...this.getPlatformAgentToolHandlers(args),
     } satisfies ToolCallHandlerMap;
 
@@ -226,6 +230,20 @@ export default class GatewayConnectionCtr extends ControllerModule {
     }
 
     return handler();
+  }
+
+  private async executeMessageApi(
+    platform: string,
+    apiName: string,
+    payload: Record<string, unknown>,
+  ): Promise<unknown> {
+    if (platform === 'imessage') {
+      return this.imessageBridgeSrv.handleGatewayMessageApi(apiName, payload);
+    }
+
+    throw new Error(
+      `Message API "${platform}/${apiName}" is not available on this device. It may not be supported in the current desktop version.`,
+    );
   }
 
   private getLocalFileToolHandlers(args: any): ToolCallHandlerMap {
@@ -266,25 +284,6 @@ export default class GatewayConnectionCtr extends ControllerModule {
       getCommandOutput: () => this.shellCommandCtr.handleGetCommandOutput(args),
       killCommand: () => this.shellCommandCtr.handleKillCommand(args),
       runCommand: () => this.shellCommandCtr.handleRunCommand(args),
-    };
-  }
-
-  private getImessageToolHandlers(args: any): ToolCallHandlerMap {
-    return {
-      'imessage.downloadAttachment': () =>
-        this.imessageBridgeSrv.handleGatewayToolCall('downloadAttachment', args),
-      'imessage.getChat': () => this.imessageBridgeSrv.handleGatewayToolCall('getChat', args),
-      'imessage.getChatMessages': () =>
-        this.imessageBridgeSrv.handleGatewayToolCall('getChatMessages', args),
-      'imessage.ping': () => this.imessageBridgeSrv.handleGatewayToolCall('ping', args),
-      'imessage.queryChats': () => this.imessageBridgeSrv.handleGatewayToolCall('queryChats', args),
-      'imessage.queryMessages': () =>
-        this.imessageBridgeSrv.handleGatewayToolCall('queryMessages', args),
-      'imessage.sendAttachment': () =>
-        this.imessageBridgeSrv.handleGatewayToolCall('sendAttachment', args),
-      'imessage.sendText': () => this.imessageBridgeSrv.handleGatewayToolCall('sendText', args),
-      'imessage.startTyping': () =>
-        this.imessageBridgeSrv.handleGatewayToolCall('startTyping', args),
     };
   }
 

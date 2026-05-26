@@ -137,7 +137,7 @@ export default class ImessageBridgeService extends ServiceModule {
     return { success: true };
   }
 
-  async handleGatewayToolCall(apiName: string, args: Record<string, unknown>): Promise<unknown> {
+  async handleGatewayMessageApi(apiName: string, args: Record<string, unknown>): Promise<unknown> {
     const applicationId = assertString(args.applicationId, 'applicationId');
     const config = this.findConfig(applicationId);
     const api = this.createApiClient(config);
