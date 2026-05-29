@@ -16,6 +16,10 @@ import { GroupAgentBuilderRenders } from '@lobechat/builtin-tool-group-agent-bui
 import { GroupManagementManifest } from '@lobechat/builtin-tool-group-management';
 import { GroupManagementRenders } from '@lobechat/builtin-tool-group-management/client';
 import {
+  ImageGenerationManifest,
+  ImageGenerationRenders,
+} from '@lobechat/builtin-tool-image-generation/client';
+import {
   KnowledgeBaseManifest,
   KnowledgeBaseRenders,
 } from '@lobechat/builtin-tool-knowledge-base/client';
@@ -63,6 +67,7 @@ const BuiltinToolsRenders: Record<string, Record<string, BuiltinRender>> = {
   [CloudSandboxManifest.identifier]: CloudSandboxRenders as Record<string, BuiltinRender>,
   [GroupAgentBuilderManifest.identifier]: GroupAgentBuilderRenders as Record<string, BuiltinRender>,
   [GroupManagementManifest.identifier]: GroupManagementRenders as Record<string, BuiltinRender>,
+  [ImageGenerationManifest.identifier]: ImageGenerationRenders as Record<string, BuiltinRender>,
   [KnowledgeBaseManifest.identifier]: KnowledgeBaseRenders as Record<string, BuiltinRender>,
   [LobeAgentManifest.identifier]: LobeAgentRenders as Record<string, BuiltinRender>,
   [LocalSystemManifest.identifier]: LocalSystemRenders as Record<string, BuiltinRender>,

@@ -31,6 +31,10 @@ import {
   GroupManagementManifest,
 } from '@lobechat/builtin-tool-group-management/client';
 import {
+  ImageGenerationInspectors,
+  ImageGenerationManifest,
+} from '@lobechat/builtin-tool-image-generation/client';
+import {
   KnowledgeBaseInspectors,
   KnowledgeBaseManifest,
 } from '@lobechat/builtin-tool-knowledge-base/client';
@@ -89,6 +93,10 @@ const BuiltinToolInspectors: Record<string, Record<string, BuiltinInspector>> = 
     BuiltinInspector
   >,
   [GroupManagementManifest.identifier]: GroupManagementInspectors as Record<
+    string,
+    BuiltinInspector
+  >,
+  [ImageGenerationManifest.identifier]: ImageGenerationInspectors as Record<
     string,
     BuiltinInspector
   >,
