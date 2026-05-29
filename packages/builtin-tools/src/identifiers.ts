@@ -13,6 +13,7 @@ import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { NotebookManifest } from '@lobechat/builtin-tool-notebook';
 import { PageAgentManifest } from '@lobechat/builtin-tool-page-agent';
+import { PersonalPagesManifest } from '@lobechat/builtin-tool-personal-pages';
 import { selfFeedbackIntentManifest } from '@lobechat/builtin-tool-self-iteration';
 import { SkillStoreManifest } from '@lobechat/builtin-tool-skill-store';
 import { SkillsManifest } from '@lobechat/builtin-tool-skills';
@@ -35,6 +36,7 @@ export const builtinToolIdentifiers: string[] = [
   MemoryManifest.identifier,
   NotebookManifest.identifier,
   PageAgentManifest.identifier,
+  PersonalPagesManifest.identifier,
   selfFeedbackIntentManifest.identifier,
   SkillsManifest.identifier,
   SkillStoreManifest.identifier,
