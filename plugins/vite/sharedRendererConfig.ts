@@ -234,6 +234,13 @@ export const sharedOptimizeDeps = {
     '@ant-design/icons',
     '@lobehub/ui',
     '@lobehub/ui > @emotion/react',
+    // Dedupe motion the same way as @emotion/react: force @lobehub/ui's internal
+    // `motion/react` (LazyMotion context) and `motion/react-m` (m component) into the
+    // shared prebundle, so they share a single React context with the app-level
+    // <LazyMotion> in SPAGlobalProvider. Otherwise useMotionComponent throws
+    // "wrap your app with <ConfigProvider>/<MotionProvider>".
+    '@lobehub/ui > motion/react',
+    '@lobehub/ui > motion/react-m',
     'antd-style',
     'zustand',
     'zustand/middleware',
@@ -262,6 +269,7 @@ export const sharedOptimizeDeps = {
 
     'ahooks',
     'motion/react',
+    'motion/react-m',
   ],
 };
 
