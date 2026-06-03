@@ -60,6 +60,29 @@ export const topics = pgTable(
     // Primary model / provider snapshot, promoted from metadata so it is indexable for GROUP BY.
     model: text('model'),
     provider: text('provider'),
+
+    // ---- Agent share fields ----
+    // All three are nullable; only populated when the topic originates from a share link.
+
+    /**
+     * The agent_shares.id this topic belongs to.
+     * Intentionally has no FK constraint: share deletion must not cascade-delete conversations,
+     * and this ID may reference a record in a separate deployment environment.
+     */
+    shareId: text('share_id'),
+
+    /**
+     * Browser-generated UUID stored in localStorage for unauthenticated visitors.
+     * Retained after login to preserve the full audit trail.
+     */
+    guestToken: text('guest_token'),
+
+    /**
+     * Set when a guest logs in and binds their prior conversation.
+     * ON DELETE SET NULL: user account deletion should not orphan the conversation record.
+     */
+    visitorUserId: text('visitor_user_id').references(() => users.id, { onDelete: 'set null' }),
+
     ...timestamps,
   },
   (t) => [
@@ -74,6 +97,8 @@ export const topics = pgTable(
     index('topics_model_idx').on(t.model),
     index('topics_provider_idx').on(t.provider),
     index('topics_user_id_completed_at_idx').on(t.userId, t.completedAt),
+    index('topics_share_id_idx').on(t.shareId),
+    index('topics_guest_token_idx').on(t.guestToken),
     index('topics_extract_status_gin_idx').using(
       'gin',
       sql`(metadata->'userMemoryExtractStatus') jsonb_path_ops`,
