@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS "agent_shares" (
-	"id" text PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agent_id" text NOT NULL,
 	"visibility" text DEFAULT 'private' NOT NULL,
 	"share_config" jsonb,

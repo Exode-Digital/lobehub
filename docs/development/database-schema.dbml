@@ -359,7 +359,7 @@ table agent_operations {
 }
 
 table agent_shares {
-  id text [pk, not null]
+  id uuid [pk, not null, default: `gen_random_uuid()`]
   agent_id text [not null]
   visibility text [not null, default: 'private']
   share_config jsonb

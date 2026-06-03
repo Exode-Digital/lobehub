@@ -1,6 +1,5 @@
-import { index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
-import { createNanoId } from '../utils/idGenerator';
 import { timestamps } from './_helpers';
 import { agents } from './agent';
 
@@ -19,9 +18,7 @@ export interface AgentShareConfig {
 export const agentShares = pgTable(
   'agent_shares',
   {
-    id: text('id')
-      .$defaultFn(() => createNanoId(8)())
-      .primaryKey(),
+    id: uuid('id').defaultRandom().primaryKey(),
 
     agentId: text('agent_id')
       .notNull()

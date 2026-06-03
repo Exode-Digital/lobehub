@@ -6,7 +6,7 @@
   },
   "dialect": "postgresql",
   "enums": {},
-  "id": "36b43dc5-2c55-4da3-8848-3d28a5420b06",
+  "id": "acad721c-b00f-49b1-a6cf-dfc92c2a9302",
   "policies": {},
   "prevId": "85341c05-67d1-43f7-8550-790e8d025225",
   "roles": {},
@@ -3001,9 +3001,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "agent_id": {
           "name": "agent_id",
