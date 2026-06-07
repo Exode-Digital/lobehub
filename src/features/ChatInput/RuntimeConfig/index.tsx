@@ -16,10 +16,8 @@ import { useAgentId } from '../hooks/useAgentId';
 import { useUpdateAgentConfig } from '../hooks/useUpdateAgentConfig';
 import { useChatInputStore } from '../store';
 import ApprovalMode from './ApprovalMode';
-import CloudRepoSwitcher from './CloudRepoSwitcher';
-import HeteroDeviceSwitcher from './HeteroDeviceSwitcher';
 import ModeSelector from './ModeSelector';
-import WorkingDirectorySection from './WorkingDirectorySection';
+import WorkspaceControls from './WorkspaceControls';
 
 const MODE_ICONS: Record<RuntimeEnvMode, typeof LaptopIcon> = {
   cloud: CloudIcon,
@@ -99,23 +97,15 @@ const RuntimeConfig = memo(() => {
     s.rightActions.flat().includes('contextWindow'),
   );
 
-  const [isLoading, runtimeMode, isHeterogeneous, enableAgentMode] = useAgentStore((s) => [
+  const [isLoading, runtimeMode, enableAgentMode] = useAgentStore((s) => [
     agentByIdSelectors.isAgentConfigLoadingById(agentId)(s),
     chatConfigByIdSelectors.getRuntimeModeById(agentId)(s),
-    agentId ? agentByIdSelectors.isAgentHeterogeneousById(agentId)(s) : false,
     agentByIdSelectors.getAgentEnableModeById(agentId)(s),
   ]);
 
   const enableExecutionDeviceSwitcher = useUserStore(
     labPreferSelectors.enableExecutionDeviceSwitcher,
   );
-
-  const agencyConfig = useAgentStore((s) =>
-    agentId ? agentByIdSelectors.getAgencyConfigById(agentId)(s) : undefined,
-  );
-  // Runs dispatched to a remote device get the device-scoped working directory
-  // picker instead of the local one (handled inside WorkingDirectorySection).
-  const isDeviceMode = agencyConfig?.executionTarget === 'device' && !!agencyConfig?.boundDeviceId;
 
   const switchMode = useCallback(
     async (mode: RuntimeEnvMode) => {
@@ -207,33 +197,14 @@ const RuntimeConfig = memo(() => {
     </div>
   );
 
-  const rightContent = () => {
-    // Remote device runs get the device-scoped picker, regardless of runtimeMode
-    // (which HeteroDeviceSwitcher sets to 'none' when a device is selected).
-    if (isDeviceMode) return <WorkingDirectorySection agentId={agentId} />;
-
-    // Web + heterogeneous agent always shows the cloud repo switcher,
-    // regardless of the stored runtimeMode (which may be 'local' from desktop).
-    if (!isDesktop && isHeterogeneous && agentId) {
-      return <CloudRepoSwitcher agentId={agentId} />;
-    }
-
-    // Desktop local mode: show working directory picker
-    if (runtimeMode === 'local') return <WorkingDirectorySection agentId={agentId} />;
-
-    return null;
-  };
-
   return (
     <Flexbox horizontal align={'center'} className={styles.bar} justify={'space-between'}>
-      {/* Left: Chat mode switcher + (agent-only) runtime env + working directory */}
+      {/* Left: Chat mode switcher + (agent-only) device / working-directory controls */}
       <Flexbox horizontal align={'center'} gap={4}>
         <ModeSelector />
-        {enableAgentMode && enableExecutionDeviceSwitcher && agentId && (
-          <HeteroDeviceSwitcher agentId={agentId} />
-        )}
         {enableAgentMode && (
           <>
+            {/* Legacy local/cloud/none picker — only when the device switcher lab flag is off */}
             {!enableExecutionDeviceSwitcher && (
               <Popover
                 content={modeContent}
@@ -252,7 +223,7 @@ const RuntimeConfig = memo(() => {
                 </div>
               </Popover>
             )}
-            {rightContent()}
+            <WorkspaceControls agentId={agentId} />
           </>
         )}
       </Flexbox>

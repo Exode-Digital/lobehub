@@ -8,14 +8,9 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useAgentId } from '@/features/ChatInput/hooks/useAgentId';
-import CloudRepoSwitcher from '@/features/ChatInput/RuntimeConfig/CloudRepoSwitcher';
-import DeviceWorkingDirectory from '@/features/ChatInput/RuntimeConfig/DeviceWorkingDirectory';
-import HeteroDeviceSwitcher from '@/features/ChatInput/RuntimeConfig/HeteroDeviceSwitcher';
-import WorkingDirectorySection from '@/features/ChatInput/RuntimeConfig/WorkingDirectorySection';
+import WorkspaceControls from '@/features/ChatInput/RuntimeConfig/WorkspaceControls';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
-import { useUserStore } from '@/store/user';
-import { labPreferSelectors } from '@/store/user/selectors';
 
 const styles = createStaticStyles(({ css }) => ({
   bar: css`
@@ -44,28 +39,15 @@ const WorkingDirectoryBar = memo(() => {
 
   // All hooks must be called unconditionally (Rules of Hooks)
   const isLoading = useAgentStore(agentByIdSelectors.isAgentConfigLoadingById(agentId));
-  const enableExecutionDeviceSwitcher = useUserStore(
-    labPreferSelectors.enableExecutionDeviceSwitcher,
-  );
-  const agencyConfig = useAgentStore((s) =>
-    agentId ? agentByIdSelectors.getAgencyConfigById(agentId)(s) : undefined,
-  );
-  // Runs dispatched to a remote device can't browse the local filesystem — use
-  // the device-scoped picker (recent dirs + manual input) instead.
-  const isDeviceMode = agencyConfig?.executionTarget === 'device' && !!agencyConfig?.boundDeviceId;
 
-  // On web, show the cloud repo switcher instead of the local directory picker
+  // On web there's no full-access badge / skeleton — just the workspace controls
+  // (the cloud repo switcher is rendered inside WorkspaceControls).
   if (!isDesktop) {
     if (!agentId) return null;
     return (
       <Flexbox horizontal align={'center'} className={styles.bar} justify={'space-between'}>
         <Flexbox horizontal align={'center'} gap={4}>
-          {enableExecutionDeviceSwitcher && <HeteroDeviceSwitcher agentId={agentId} />}
-          {isDeviceMode ? (
-            <DeviceWorkingDirectory agentId={agentId} />
-          ) : (
-            <CloudRepoSwitcher agentId={agentId} />
-          )}
+          <WorkspaceControls alwaysShowWorkspace agentId={agentId} />
         </Flexbox>
       </Flexbox>
     );
@@ -90,8 +72,7 @@ const WorkingDirectoryBar = memo(() => {
   return (
     <Flexbox horizontal align={'center'} className={styles.bar} justify={'space-between'}>
       <Flexbox horizontal align={'center'} gap={4}>
-        {enableExecutionDeviceSwitcher && <HeteroDeviceSwitcher agentId={agentId} />}
-        <WorkingDirectorySection agentId={agentId} />
+        <WorkspaceControls alwaysShowWorkspace agentId={agentId} />
       </Flexbox>
       <Tooltip title={tChat('heteroAgent.fullAccess.tooltip')}>{fullAccessBadge}</Tooltip>
     </Flexbox>
