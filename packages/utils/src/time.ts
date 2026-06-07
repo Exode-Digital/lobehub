@@ -68,7 +68,7 @@ const ACTIVITY_TIME_DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Format a timestamp for an activity-feed entry: relative (`from()`) when
- * recent, absolute date (`Apr 29` / `4月29日`) once the gap crosses one day.
+ * recent, absolute date (`Apr 29`, localized) once the gap crosses one day.
  */
 export const formatActivityTime = (
   time?: string | Date | number | null,

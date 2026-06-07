@@ -125,7 +125,7 @@ const renderInputMessages = (input: unknown, full: boolean): string[] => {
 };
 
 const renderOutput = (output: unknown, full: boolean): string => {
-  // Inline tiny single-key objects: `{ completion: "怎么样" }` → `completion: "怎么样"`
+  // Inline tiny single-key objects: `{ completion: "hello" }` → `completion: "hello"`
   if (
     output &&
     typeof output === 'object' &&
