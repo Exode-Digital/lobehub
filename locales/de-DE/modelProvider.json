@@ -238,6 +238,7 @@
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken32k.hint": "Für GLM-5 und GLM-4.7; steuert das Token-Budget für das logische Denken (max. 32k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken80k.hint": "Für die Qwen3-Serie; steuert das Token-Budget für das logische Denken (max. 80k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint": "Für OpenAI und andere Modelle mit Denkfähigkeit; steuert den Denkaufwand.",
+  "providerModels.item.modelConfig.extendParams.options.step3_5ReasoningEffort.hint": "For Step 3.5 series; controls reasoning intensity.",
   "providerModels.item.modelConfig.extendParams.options.textVerbosity.hint": "Für die GPT-5+-Serie; steuert die Ausführlichkeit der Ausgabe.",
   "providerModels.item.modelConfig.extendParams.options.thinking.hint": "Für einige Doubao-Modelle; erlaubt dem Modell zu entscheiden, ob es tiefgründig denken soll.",
   "providerModels.item.modelConfig.extendParams.options.thinkingBudget.hint": "Für die Gemini-Serie; steuert das Denkbudget.",

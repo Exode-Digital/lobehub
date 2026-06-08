@@ -6,6 +6,7 @@ import { getRouteById } from '@/config/routes';
 import { useGlobalStore } from '@/store/global';
 import { SidebarTabKey } from '@/store/global/initialState';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import { useWorkspaceStore, workspaceSelectors } from '@/store/workspace';
 
 export interface NavItem {
   hidden?: boolean;
@@ -36,6 +37,9 @@ export const useNavLayout = (): NavLayout => {
   const { t } = useTranslation('common');
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
+  const activeWorkspaceSlug = useWorkspaceStore(
+    (s) => workspaceSelectors.activeWorkspace(s)?.slug ?? null,
+  );
 
   const topNavItems = useMemo(
     () =>
@@ -91,13 +95,14 @@ export const useNavLayout = (): NavLayout => {
           url: '/resource',
         },
         {
+          hidden: !!activeWorkspaceSlug,
           icon: getRouteById('memory')!.icon,
           key: SidebarTabKey.Memory,
           title: t('tab.memory'),
           url: '/memory',
         },
       ] as NavItem[],
-    [t, showMarket],
+    [t, showMarket, activeWorkspaceSlug],
   );
 
   const footer = useMemo(
@@ -113,7 +118,9 @@ export const useNavLayout = (): NavLayout => {
   const userPanel = useMemo(
     () => ({
       showDataImporter: false,
-      showMemory: true,
+      // Memory now appears in the sidebar by default; drop the duplicate entry
+      // from the user dropdown to keep that menu focused on account / settings.
+      showMemory: false,
     }),
     [],
   );

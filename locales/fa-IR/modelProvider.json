@@ -238,6 +238,7 @@
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken32k.hint": "برای GLM-5 و GLM-4.7؛ بودجه توکن برای استدلال را کنترل می‌کند (حداکثر ۳۲k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken80k.hint": "برای سری Qwen3؛ بودجه توکن برای استدلال را کنترل می‌کند (حداکثر ۸۰k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint": "برای مدل‌های OpenAI و سایر مدل‌های دارای توانایی استدلال؛ میزان تلاش استدلالی را کنترل می‌کند.",
+  "providerModels.item.modelConfig.extendParams.options.step3_5ReasoningEffort.hint": "For Step 3.5 series; controls reasoning intensity.",
   "providerModels.item.modelConfig.extendParams.options.textVerbosity.hint": "برای سری GPT-5+؛ میزان تفصیل خروجی را کنترل می‌کند.",
   "providerModels.item.modelConfig.extendParams.options.thinking.hint": "برای برخی مدل‌های Doubao؛ به مدل اجازه می‌دهد تصمیم بگیرد که آیا عمیق فکر کند یا نه.",
   "providerModels.item.modelConfig.extendParams.options.thinkingBudget.hint": "برای سری Gemini؛ بودجه تفکر را کنترل می‌کند.",

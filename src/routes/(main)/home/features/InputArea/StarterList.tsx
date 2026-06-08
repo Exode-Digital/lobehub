@@ -1,5 +1,5 @@
 import { ModelIcon } from '@lobehub/icons';
-import { Button, Center, Skeleton, Tag } from '@lobehub/ui';
+import { Button, Center, Skeleton, Tag, Tooltip } from '@lobehub/ui';
 import { App } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
 import { memo, useCallback, useState } from 'react';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { HomeNewModelItem } from '@/business/client/hooks/useHomeNewModels';
 import { useHomeNewModels } from '@/business/client/hooks/useHomeNewModels';
+import { usePermission } from '@/hooks/usePermission';
 import { useStableNavigate } from '@/hooks/useStableNavigate';
 import { agentService } from '@/services/agent';
 import { useAgentStore } from '@/store/agent';
@@ -45,12 +46,15 @@ const StarterList = memo(() => {
   const navigate = useStableNavigate();
   const { message } = App.useApp();
   const { agentId: activeAgentId } = useResolvedHomeAgentId();
+  const { allowed: canCreateContent, reason } = usePermission('create_content');
   const updateAgentConfigById = useAgentStore((s) => s.updateAgentConfigById);
   const [switchingKey, setSwitchingKey] = useState<string | null>(null);
   const { isLoading, items } = useHomeNewModels(DEFAULT_HOME_NEW_MODELS);
 
   const handleClick = useCallback(
     async (item: HomeNewModelItem) => {
+      if (!canCreateContent) return;
+
       const key = getStarterItemKey(item);
 
       if (item.type === 'video') {
@@ -96,7 +100,7 @@ const StarterList = memo(() => {
         return;
       }
     },
-    [navigate, activeAgentId, updateAgentConfigById, switchingKey, message, t],
+    [canCreateContent, navigate, activeAgentId, updateAgentConfigById, switchingKey, message, t],
   );
 
   return (
@@ -119,11 +123,10 @@ const StarterList = memo(() => {
         : items.map((item) => {
             const key = getStarterItemKey(item);
             const isSwitching = switchingKey === key;
-
-            return (
+            const button = (
               <Button
                 className={cx(styles.button)}
-                disabled={!!switchingKey && !isSwitching}
+                disabled={!canCreateContent || (!!switchingKey && !isSwitching)}
                 icon={<ModelIcon model={item.iconModel ?? item.model} size={18} />}
                 key={key}
                 loading={isSwitching}
@@ -134,6 +137,16 @@ const StarterList = memo(() => {
                 {item.title}
               </Button>
             );
+
+            if (!canCreateContent) {
+              return (
+                <Tooltip key={key} title={reason}>
+                  <div>{button}</div>
+                </Tooltip>
+              );
+            }
+
+            return button;
           })}
     </Center>
   );

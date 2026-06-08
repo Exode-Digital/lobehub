@@ -10,6 +10,7 @@ import { useAgentStore } from '@/store/agent';
 import { agentChatConfigSelectors, agentSelectors } from '@/store/agent/selectors';
 import { useGlobalStore } from '@/store/global';
 import { globalGeneralSelectors } from '@/store/global/selectors';
+import { useWorkspaceStore, workspaceSelectors } from '@/store/workspace';
 
 import { type MarketPublishAction } from './types';
 import { generateDefaultChangelog } from './utils';
@@ -56,6 +57,7 @@ export const useMarketPublish = ({ action, onSuccess }: UseMarketPublishOptions)
   const model = useAgentStore(agentSelectors.currentAgentModel);
   const provider = useAgentStore(agentSelectors.currentAgentModelProvider);
   const tokenUsage = useTokenCount(systemRole);
+  const hasActiveWorkspace = useWorkspaceStore(workspaceSelectors.hasActiveWorkspace);
 
   const isSubmit = action === 'submit';
 
@@ -117,9 +119,13 @@ export const useMarketPublish = ({ action, onSuccess }: UseMarketPublishOptions)
       isPublishingRef.current = true;
       setIsPublishing(true);
       message.loading({ content: loadingMessage, key: messageKey });
+      const actAs = hasActiveWorkspace
+        ? (await lambdaClient.workspace.ensureMarketOrganization.mutate()).marketAccountId
+        : undefined;
 
       // Use tRPC publishOrCreate - backend handles ownership check automatically
       const result = await lambdaClient.market.agent.publishOrCreate.mutate({
+        actAs,
         avatar: meta?.avatar,
         changelog,
         config: {
@@ -189,6 +195,7 @@ export const useMarketPublish = ({ action, onSuccess }: UseMarketPublishOptions)
     chatConfig?.historyCount,
     chatConfig?.searchMode,
     editorData,
+    hasActiveWorkspace,
     isAuthenticated,
     isSubmit,
     language,

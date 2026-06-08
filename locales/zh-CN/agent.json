@@ -251,5 +251,21 @@
   "channel.wechatScanToConnect": "扫码连接",
   "channel.wechatTips": "请将微信更新至最新版本并重新启动。ClawBot 插件正在逐步推广，请前往设置 > 插件确认是否已获得访问权限。",
   "channel.wechatUserId": "微信用户 ID",
-  "channel.wechatUserIdHint": "通过授权流程返回的微信账号标识符。"
+  "channel.wechatUserIdHint": "通过授权流程返回的微信账号标识符。",
+  "transfer.button": "迁移",
+  "transfer.confirm.botChannels": "迁移后 Bot Channel 连接可能需要刷新",
+  "transfer.confirm.chatGroups": "多 Agent 对话组关联将被移除",
+  "transfer.confirm.desc": "这将把该 Agent 及其所有关联数据（话题、消息、文件等）迁移到目标工作空间。",
+  "transfer.confirm.plugins": "自定义插件在目标工作空间中可能不可用",
+  "transfer.confirm.title": "迁移 Agent",
+  "transfer.confirm.warning": "部分功能不会被迁移：",
+  "transfer.copyTo": "复制到",
+  "transfer.desc": "将此 Agent 迁移到其他工作空间或你的个人账号。",
+  "transfer.error": "Agent 迁移失败",
+  "transfer.personalAccount": "个人账号",
+  "transfer.searchWorkspace": "搜索工作空间...",
+  "transfer.selectTarget": "迁移 Agent 到",
+  "transfer.success": "Agent 迁移成功",
+  "transfer.title": "迁移",
+  "transfer.transferTo": "转移到"
 }

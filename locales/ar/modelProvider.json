@@ -238,6 +238,7 @@
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken32k.hint": "لـ GLM-5 و GLM-4.7؛ يتحكم في ميزانية الرموز للتفكير (الحد الأقصى 32k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken80k.hint": "لسلسلة Qwen3؛ يتحكم في ميزانية الرموز للتفكير (الحد الأقصى 80k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint": "لنماذج OpenAI وغيرها من النماذج القادرة على الاستدلال؛ يتحكم في جهد الاستدلال.",
+  "providerModels.item.modelConfig.extendParams.options.step3_5ReasoningEffort.hint": "لسلسلة الخطوة 3.5؛ يتحكم في شدة التفكير.",
   "providerModels.item.modelConfig.extendParams.options.textVerbosity.hint": "لسلسلة GPT-5+؛ يتحكم في تفصيل النص الناتج.",
   "providerModels.item.modelConfig.extendParams.options.thinking.hint": "لبعض نماذج Doubao؛ يسمح للنموذج بتحديد ما إذا كان يجب التفكير بعمق.",
   "providerModels.item.modelConfig.extendParams.options.thinkingBudget.hint": "لسلسلة Gemini؛ يتحكم في ميزانية التفكير.",

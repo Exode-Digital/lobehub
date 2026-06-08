@@ -238,6 +238,7 @@
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken32k.hint": "Dành cho GLM-5 và GLM-4.7; kiểm soát ngân sách token cho suy luận (tối đa 32k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken80k.hint": "Dành cho dòng Qwen3; kiểm soát ngân sách token cho suy luận (tối đa 80k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint": "Dành cho OpenAI và các mô hình có khả năng suy luận khác; điều chỉnh mức độ suy luận.",
+  "providerModels.item.modelConfig.extendParams.options.step3_5ReasoningEffort.hint": "For Step 3.5 series; controls reasoning intensity.",
   "providerModels.item.modelConfig.extendParams.options.textVerbosity.hint": "Dành cho dòng GPT-5+; điều chỉnh độ dài và chi tiết của đầu ra.",
   "providerModels.item.modelConfig.extendParams.options.thinking.hint": "Dành cho một số mô hình Doubao; cho phép mô hình quyết định có nên suy nghĩ sâu hay không.",
   "providerModels.item.modelConfig.extendParams.options.thinkingBudget.hint": "Dành cho dòng Gemini; điều chỉnh ngân sách suy nghĩ.",

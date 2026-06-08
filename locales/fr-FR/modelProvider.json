@@ -238,6 +238,7 @@
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken32k.hint": "Pour GLM-5 et GLM-4.7 ; contrôle le budget de tokens pour le raisonnement (max 32k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken80k.hint": "Pour la série Qwen3 ; contrôle le budget de tokens pour le raisonnement (max 80k).",
   "providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint": "Pour OpenAI et autres modèles capables de raisonnement ; contrôle l’effort de raisonnement.",
+  "providerModels.item.modelConfig.extendParams.options.step3_5ReasoningEffort.hint": "For Step 3.5 series; controls reasoning intensity.",
   "providerModels.item.modelConfig.extendParams.options.textVerbosity.hint": "Pour la série GPT-5+ ; contrôle la verbosité de la sortie.",
   "providerModels.item.modelConfig.extendParams.options.thinking.hint": "Pour certains modèles Doubao ; permet au modèle de décider s’il doit réfléchir en profondeur.",
   "providerModels.item.modelConfig.extendParams.options.thinkingBudget.hint": "Pour la série Gemini ; contrôle le budget de réflexion.",
