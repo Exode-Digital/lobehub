@@ -1,11 +1,12 @@
 import { Center, Flexbox } from '@lobehub/ui';
 import { Drawer } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { Suspense, useCallback } from 'react';
+import { Suspense, useCallback, useEffect } from 'react';
 
 import { BrandTextLoading } from '@/components/Loading';
 import LoginStep from '@/routes/(desktop)/desktop-onboarding/features/LoginStep';
 import { useElectronStore } from '@/store/electron';
+import { useUserStore } from '@/store/user';
 import { isMacOS } from '@/utils/platform';
 
 import RemoteStatus from './RemoteStatus';
@@ -29,6 +30,16 @@ const Connection = () => {
     s.isConnectionDrawerOpen,
     s.setConnectionDrawerOpen,
   ]);
+  const refreshUserState = useUserStore((s) => s.refreshUserState);
+
+  // Re-probe the session whenever the drawer opens. `getUserState` is fetched once at
+  // startup, so a session that expired afterwards would otherwise leave a stale
+  // signed-in state and make the panel claim "Authorization Successful". Revalidating
+  // refreshes that state (and surfaces a dead session via the backend's 401 → re-auth flow).
+  useEffect(() => {
+    if (!isOpen) return;
+    refreshUserState().catch(() => {});
+  }, [isOpen, refreshUserState]);
 
   const handleClose = useCallback(() => {
     setConnectionDrawerOpen(false);

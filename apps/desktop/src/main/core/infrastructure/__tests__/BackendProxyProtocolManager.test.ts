@@ -261,6 +261,44 @@ describe('BackendProxyProtocolManager', () => {
     expect(send).toHaveBeenCalledWith('authorizationRequired');
   });
 
+  it('invokes onAuthorizationRequired once per 401 burst (debounced) so persisted auth state is flipped', async () => {
+    vi.useFakeTimers();
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
+      { isDestroyed: () => false, webContents: { send: vi.fn() } },
+    ] as any);
+
+    const manager = new BackendProxyProtocolManager();
+    const session = {} as any;
+    const onAuthorizationRequired = vi.fn(async () => {});
+
+    const headers = new Headers({ [AUTH_REQUIRED_HEADER]: 'true' });
+    const fetchMock = vi.fn<FetchMock>(
+      async () => new Response('{}', { headers, status: 401, statusText: 'Unauthorized' }),
+    );
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    manager.registerWithRemoteBaseUrl(session, {
+      getAccessToken: async () => 'expired-token',
+      getRemoteBaseUrl: async () => 'https://remote.example.com',
+      onAuthorizationRequired,
+    });
+
+    const fire = () =>
+      manager.proxy(
+        { headers: new Headers(), method: 'GET', url: 'app://renderer/trpc/hello' } as any,
+        session,
+      );
+
+    // A burst of 401s must collapse into a single handler invocation.
+    await fire();
+    await fire();
+    await fire();
+
+    expect(onAuthorizationRequired).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onAuthorizationRequired).toHaveBeenCalledTimes(1);
+  });
+
   describe('createAppRequestInterceptor', () => {
     it('returns null for non-backend paths', async () => {
       const manager = new BackendProxyProtocolManager();

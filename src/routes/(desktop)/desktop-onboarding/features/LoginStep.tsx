@@ -17,6 +17,8 @@ import { useIMECompositionEvent } from '@/hooks/useIMECompositionEvent';
 import { remoteServerService } from '@/services/electron/remoteServer';
 import { electronSystemService } from '@/services/electron/system';
 import { useElectronStore } from '@/store/electron';
+import { useUserStore } from '@/store/user';
+import { authSelectors } from '@/store/user/selectors';
 import { setDesktopAutoOidcFirstOpenHandled } from '@/utils/electron/autoOidc';
 
 import LobeMessage from '../components/LobeMessage';
@@ -93,6 +95,12 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
   useDataSyncConfig();
 
+  // The persisted `dataSyncConfig.active` flag only records that a remote was once
+  // connected — it is NOT cleared when the session silently expires. Gate "authorized"
+  // on the real signed-in state (getUserState succeeded) so a dead/anonymous session
+  // never renders as "Authorization Successful".
+  const isSignedIn = useUserStore(authSelectors.isLogin);
+
   useEffect(() => {
     if (!isDesktop) return;
 
@@ -109,8 +117,10 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     };
   }, []);
 
-  const isCloudAuthed = !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'cloud';
-  const isSelfHostAuthed = !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'selfHost';
+  const isCloudAuthed =
+    !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'cloud' && isSignedIn;
+  const isSelfHostAuthed =
+    !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'selfHost' && isSignedIn;
   const authorizedLoginMethod: LoginMethod | null = isCloudAuthed
     ? 'cloud'
     : isSelfHostAuthed

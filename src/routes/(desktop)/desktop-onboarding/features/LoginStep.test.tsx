@@ -13,6 +13,10 @@ const mockElectronState = vi.hoisted(() => ({
   useDataSyncConfig: vi.fn(() => ({})),
 }));
 
+const mockUserState = vi.hoisted(() => ({
+  isSignedIn: true,
+}));
+
 vi.mock('@lobechat/electron-client-ipc', () => ({
   useWatchBroadcast: vi.fn(),
 }));
@@ -125,6 +129,16 @@ vi.mock('@/store/electron', () => ({
     selector(mockElectronState),
 }));
 
+vi.mock('@/store/user', () => ({
+  useUserStore: <T,>(selector: (state: typeof mockUserState) => T) => selector(mockUserState),
+}));
+
+vi.mock('@/store/user/selectors', () => ({
+  authSelectors: {
+    isLogin: (s: typeof mockUserState) => s.isSignedIn,
+  },
+}));
+
 vi.mock('@/utils/electron/autoOidc', () => ({
   setDesktopAutoOidcFirstOpenHandled: vi.fn(),
 }));
@@ -149,6 +163,7 @@ beforeEach(() => {
   mockElectronState.refreshServerConfig.mockClear();
   mockElectronState.remoteServerSyncError = undefined;
   mockElectronState.useDataSyncConfig.mockClear();
+  mockUserState.isSignedIn = true;
 });
 
 afterEach(() => {
@@ -170,5 +185,16 @@ describe('Desktop onboarding LoginStep', () => {
     expect(screen.queryByText('Authorization Successful')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in Cloud' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use self-hosted server' })).toBeInTheDocument();
+  });
+
+  it('does not claim success when config is active but the session is signed out', async () => {
+    // Regression: an expired/anonymous session leaves dataSyncConfig.active = true.
+    // The panel must not show "Authorization Successful" — it should offer re-login.
+    mockUserState.isSignedIn = false;
+
+    await renderLoginStep();
+
+    expect(screen.queryByText('Authorization Successful')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in Cloud' })).toBeInTheDocument();
   });
 });

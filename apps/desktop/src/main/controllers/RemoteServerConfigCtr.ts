@@ -137,6 +137,24 @@ export default class RemoteServerConfigCtr extends ControllerModule {
   }
 
   /**
+   * Mark the remote session as requiring re-authorization (triggered by a backend
+   * 401 + X-Auth-Required). Flips the persisted `active` flag off so the UI and any
+   * `active`-gated state stop trusting a dead session. No-op when already inactive,
+   * so a burst of 401s doesn't fan out redundant config-updated broadcasts.
+   *
+   * Tokens are intentionally preserved (we only drop `active`): the re-auth flow
+   * reuses the configured endpoint/storageMode, and we don't want to wipe a
+   * still-valid refresh token on a transient auth hiccup.
+   */
+  async markAuthorizationRequired() {
+    const config = await this.getRemoteServerConfig();
+    if (!config.active) return;
+
+    logger.info('Marking remote server inactive: backend reported authorization required (401)');
+    await this.setRemoteServerConfig({ active: false });
+  }
+
+  /**
    * Clear remote server configuration
    */
   @IpcMethod()

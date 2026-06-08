@@ -116,6 +116,27 @@ describe('RemoteServerConfigCtr', () => {
     });
   });
 
+  describe('markAuthorizationRequired', () => {
+    it('flips active to false when the session was active', async () => {
+      mockStoreManager.get.mockReturnValue({ active: true, storageMode: 'cloud' });
+
+      await controller.markAuthorizationRequired();
+
+      expect(mockStoreManager.set).toHaveBeenCalledWith('dataSyncConfig', {
+        active: false,
+        storageMode: 'cloud',
+      });
+    });
+
+    it('is a no-op when already inactive (avoids redundant broadcasts)', async () => {
+      mockStoreManager.get.mockReturnValue({ active: false, storageMode: 'cloud' });
+
+      await controller.markAuthorizationRequired();
+
+      expect(mockStoreManager.set).not.toHaveBeenCalled();
+    });
+  });
+
   describe('clearRemoteServerConfig', () => {
     it('should clear configuration and tokens', async () => {
       const result = await controller.clearRemoteServerConfig();

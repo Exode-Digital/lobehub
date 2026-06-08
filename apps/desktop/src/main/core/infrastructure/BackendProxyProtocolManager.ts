@@ -11,6 +11,12 @@ import type { RendererRequestInterceptor } from './RendererProtocolManager';
 
 interface BackendProxyContext {
   getAccessToken: () => Promise<string | undefined | null>;
+  /**
+   * Invoked (debounced, once per 401 burst) when the backend reports that the
+   * session must re-authenticate. Lets the owner flip persisted auth state so it
+   * stops trusting a dead session.
+   */
+  onAuthorizationRequired?: () => void | Promise<void>;
   rewriteUrl: (rawUrl: string) => Promise<string | null>;
   source?: string;
 }
@@ -18,6 +24,7 @@ interface BackendProxyContext {
 interface BackendProxyRemoteBaseOptions {
   getAccessToken: () => Promise<string | undefined | null>;
   getRemoteBaseUrl: () => Promise<string | undefined | null>;
+  onAuthorizationRequired?: () => void | Promise<void>;
   source?: string;
 }
 
@@ -34,9 +41,10 @@ export class BackendProxyProtocolManager {
   private authRequiredDebounceTimer: NodeJS.Timeout | null = null;
   private static readonly AUTH_REQUIRED_DEBOUNCE_MS = 1000;
 
-  private notifyAuthorizationRequired() {
+  private notifyAuthorizationRequired(onFire?: () => void | Promise<void>) {
     // Trailing-edge debounce: coalesce rapid 401 bursts and fire AFTER the burst settles.
-    // This ensures the IPC event is sent after the renderer has had time to mount listeners.
+    // This ensures the IPC event is sent after the renderer has had time to mount listeners,
+    // and that the persisted-state flip (onFire) runs at most once per burst.
     if (this.authRequiredDebounceTimer) {
       clearTimeout(this.authRequiredDebounceTimer);
     }
@@ -50,6 +58,12 @@ export class BackendProxyProtocolManager {
           win.webContents.send('authorizationRequired');
         }
       }
+
+      // Flip persisted auth state (e.g. dataSyncConfig.active=false) so the UI and any
+      // active-gated logic stop trusting a dead session. Errors here must not break the proxy.
+      void Promise.resolve()
+        .then(() => onFire?.())
+        .catch((error) => this.logger.error('onAuthorizationRequired handler failed', error));
     }, BackendProxyProtocolManager.AUTH_REQUIRED_DEBOUNCE_MS);
   }
 
@@ -92,6 +106,7 @@ export class BackendProxyProtocolManager {
 
     this.register(session, {
       getAccessToken: options.getAccessToken,
+      onAuthorizationRequired: options.onAuthorizationRequired,
       rewriteUrl,
       source: options.source,
     });
@@ -196,7 +211,7 @@ export class BackendProxyProtocolManager {
     // Other failures keep 401 without this header (e.g., invalid API keys) and must not notify here.
     const authRequired = upstreamResponse.headers.get(AUTH_REQUIRED_HEADER) === 'true';
     if (authRequired) {
-      this.notifyAuthorizationRequired();
+      this.notifyAuthorizationRequired(context.onAuthorizationRequired);
     }
 
     return new Response(upstreamResponse.body, {

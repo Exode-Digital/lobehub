@@ -579,6 +579,9 @@ export default class Browser {
         const remoteServerUrl = await remoteServerConfigCtr.getRemoteServerUrl(config);
         return remoteServerUrl || null;
       },
+      // A 401 + X-Auth-Required means the persisted session is dead — flip `active` off so
+      // the UI stops reporting "Authorization Successful" for an expired/anonymous session.
+      onAuthorizationRequired: () => remoteServerConfigCtr.markAuthorizationRequired(),
       source: this.identifier,
     });
   }
