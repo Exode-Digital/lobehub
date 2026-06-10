@@ -14,10 +14,10 @@ import { TopicModel } from '@/database/models/topic';
 import { workspaceMembers } from '@/database/schemas';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { TaskService } from '@/server/services/task';
-import { TaskLifecycleService } from '@/server/services/taskLifecycle';
-import { TaskRunnerService } from '@/server/services/taskRunner';
 import { TransferErrorCode } from '@/types/transferError';
+import { TaskService } from '~server/services/task';
+import { TaskLifecycleService } from '~server/services/taskLifecycle';
+import { TaskRunnerService } from '~server/services/taskRunner';
 
 const taskProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;

@@ -16,8 +16,8 @@ import { UserModel } from '@/database/models/user';
 import { workspaceMembers } from '@/database/schemas';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { AgentService } from '@/server/services/agent';
 import { TransferErrorCode } from '@/types/transferError';
+import { AgentService } from '~server/services/agent';
 
 const agentProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;

@@ -13,8 +13,8 @@ import { workspaceMembers } from '@/database/schemas';
 import { type ChatGroupConfig } from '@/database/types/chatGroup';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { AgentGroupService } from '@/server/services/agentGroup';
 import { TransferErrorCode } from '@/types/transferError';
+import { AgentGroupService } from '~server/services/agentGroup';
 
 /**
  * Custom schema for agent member input, replacing drizzle-generated insertAgentSchema

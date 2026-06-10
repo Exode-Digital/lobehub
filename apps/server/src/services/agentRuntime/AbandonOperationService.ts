@@ -7,7 +7,7 @@ import { MessageModel } from '@/database/models/message';
 import type { LobeChatDatabase } from '@/database/type';
 // Direct file import (not the barrel) to avoid pulling in RuntimeExecutors and
 // its workspace-package transitive deps in the unit-test environment.
-import { AgentRuntimeCoordinator } from '@/server/modules/AgentRuntime/AgentRuntimeCoordinator';
+import { AgentRuntimeCoordinator } from '~server/modules/AgentRuntime/AgentRuntimeCoordinator';
 
 import { OperationTraceRecorder } from './OperationTraceRecorder';
 
@@ -131,7 +131,7 @@ export class AbandonOperationService {
 function createDefaultSnapshotStore(): ISnapshotStore | null {
   if (process.env.ENABLE_AGENT_S3_TRACING === '1') {
     try {
-      const { S3SnapshotStore } = require('@/server/modules/AgentTracing');
+      const { S3SnapshotStore } = require('~server/modules/AgentTracing');
       return new S3SnapshotStore();
     } catch {
       /* S3SnapshotStore not available */

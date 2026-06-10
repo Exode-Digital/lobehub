@@ -4,7 +4,6 @@ import type { SWRResponse } from 'swr';
 
 import { LOADING_FLAT } from '@/const/message';
 import { mutate, useClientDataSWR } from '@/libs/swr';
-import { type UpdateTopicValue } from '@/server/routers/lambda/generationTopic';
 import { chatService } from '@/services/chat';
 import { generationTopicService } from '@/services/generationTopic';
 import { type StoreSetter } from '@/store/types';
@@ -13,6 +12,7 @@ import { systemAgentSelectors, userGeneralSettingsSelectors } from '@/store/user
 import { type ImageGenerationTopic } from '@/types/generation';
 import { merge } from '@/utils/merge';
 import { setNamespace } from '@/utils/storeDebug';
+import { type UpdateTopicValue } from '~server/routers/lambda/generationTopic';
 
 import type { VideoStore } from '../../store';
 import { type GenerationTopicDispatch, generationTopicReducer } from './reducer';

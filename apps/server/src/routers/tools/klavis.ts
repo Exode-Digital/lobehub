@@ -7,7 +7,7 @@ import { ConnectorToolPermission } from '@/database/schemas';
 import { getKlavisClient } from '@/libs/klavis';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { MCPService } from '@/server/services/mcp';
+import { MCPService } from '~server/services/mcp';
 
 /**
  * Klavis procedure with client initialized in context
