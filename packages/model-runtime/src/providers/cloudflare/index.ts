@@ -162,7 +162,25 @@ export class LobeCloudflareAI implements LobeRuntimeAI {
     });
     const json = await response.json();
 
-    const modelList: CloudflareModelCard[] = json.result;
+    // Cloudflare wraps every response in a V4 envelope; on auth / account errors
+    // `result` is null and the failure detail lives in `errors`. Guard before
+    // mapping so a misconfigured key surfaces a proper provider error instead of
+    // a 500 `Cannot read properties of null (reading 'map')`.
+    // https://developers.cloudflare.com/fundamentals/api/reference/responses/
+    const modelList: CloudflareModelCard[] | null | undefined = json?.result;
+
+    if (!Array.isArray(modelList)) {
+      throw AgentRuntimeError.chat({
+        endpoint: desensitizeCloudflareUrl(url),
+        error: json ?? { status: response.status },
+        errorType: AgentRuntimeErrorType.ProviderBizError,
+        message:
+          extractProviderErrorMessage(json?.errors?.[0]) ||
+          extractProviderErrorMessage(json) ||
+          `Cloudflare API returned ${response.status} ${response.statusText}`,
+        provider: ModelProvider.Cloudflare,
+      });
+    }
 
     return modelList
       .map((model) => {

@@ -558,5 +558,33 @@ describe('LobeCloudflareAI', () => {
 
       expect(result).toHaveLength(2);
     });
+
+    it('should throw ProviderBizError when Cloudflare returns a null result envelope', async () => {
+      // Arrange: Cloudflare's V4 envelope on auth/account errors carries `result: null`
+      // and the detail in `errors`. Without a guard, `result.map()` throws a 500 TypeError.
+      const apiKey = 'test_api_key';
+      const instance = new LobeCloudflareAI({ apiKey, baseURLOrAccountID: accountID });
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            errors: [{ code: 10000, message: 'Authentication error' }],
+            messages: [],
+            result: null,
+            success: false,
+          }),
+          { status: 400 },
+        ),
+      );
+
+      // Act & Assert
+      await expect(instance.models()).rejects.toEqual({
+        endpoint: expect.not.stringContaining(accountID),
+        error: expect.objectContaining({ result: null, success: false }),
+        errorType: bizErrorType,
+        message: 'Authentication error',
+        provider,
+      });
+    });
   });
 });
