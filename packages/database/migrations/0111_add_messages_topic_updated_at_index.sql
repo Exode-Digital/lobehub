@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "messages_topic_id_updated_at_idx" ON "messages" USING btree ("topic_id","updated_at");
