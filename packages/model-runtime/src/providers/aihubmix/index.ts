@@ -171,9 +171,11 @@ export const params: CreateRouterRuntimeOptions = {
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${text}`);
+      if (response.ok === false) {
+        const body = await response.text().catch(() => '');
+        throw new Error('AiHubMix models API request failed', {
+          cause: { body, status: response.status },
+        });
       }
 
       const json = (await response.json()) as { data?: any[] };
@@ -181,12 +183,6 @@ export const params: CreateRouterRuntimeOptions = {
         .filter((m: any) => !UNSUPPORTED_AIHUBMIX_TYPES.has(m.types ?? ''))
         .map((m: any) => mapAiHubMixModel(m));
       return await processMultiProviderModelList(modelList, 'aihubmix');
-    } catch (error) {
-      console.warn(
-        'Failed to fetch AiHubMix models. Please ensure your AiHubMix API key is valid:',
-        error,
-      );
-      return [];
     } finally {
       clearTimeout(timeoutId);
     }

@@ -199,7 +199,17 @@ export const params = {
     });
     const json = await response.json();
 
-    const modelList: ZhipuModelCard[] = json.rows;
+    if (response.ok === false) {
+      throw new Error('Zhipu models API request failed', {
+        cause: { body: json, status: response.status },
+      });
+    }
+
+    const modelList: ZhipuModelCard[] | undefined = json.rows;
+
+    if (!Array.isArray(modelList)) {
+      throw new Error('Zhipu models API returned an invalid response', { cause: json });
+    }
 
     const standardModelList = modelList.map((model) => ({
       description: model.description,

@@ -1347,29 +1347,34 @@ describe('LobeOpenRouterAI - custom features', () => {
       expect(models).toEqual([]);
     });
 
-    it('should return empty array when fetch fails', async () => {
+    it('should throw with cause when fetch fails', async () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue({
+          json: async () => ({ error: { message: 'Unauthorized' } }),
           ok: false,
+          status: 401,
         }),
       );
 
-      const models = await params.models();
-
-      expect(models).toEqual([]);
+      try {
+        await params.models();
+        expect.fail('Expected models() to reject');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('OpenRouter models API request failed');
+        expect((error as Error).cause).toEqual({
+          body: { error: { message: 'Unauthorized' } },
+          status: 401,
+        });
+      }
     });
 
-    it('should return empty array when fetch throws error', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    it('should preserve network errors', async () => {
+      const error = new Error('Network error');
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(error));
 
-      const models = await params.models();
-
-      expect(models).toEqual([]);
-      expect(console.error).toHaveBeenCalledWith(
-        'Failed to fetch OpenRouter frontend models:',
-        expect.any(Error),
-      );
+      await expect(params.models()).rejects.toBe(error);
     });
 
     it('should handle models with missing optional fields', async () => {

@@ -673,23 +673,23 @@ describe('LobeHuggingFaceAI', () => {
       expect(models).toEqual([]);
     });
 
-    it('should handle API errors gracefully', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('API Error'));
+    it('should preserve API errors', async () => {
+      const error = new Error('API Error');
+      global.fetch = vi.fn().mockRejectedValue(error);
 
-      const result = await params.models!();
-      expect(result).toEqual([]);
+      await expect(params.models!()).rejects.toBe(error);
     });
 
-    it('should handle invalid JSON response', async () => {
+    it('should preserve invalid JSON errors', async () => {
+      const error = new Error('Invalid JSON');
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => {
-          throw new Error('Invalid JSON');
+          throw error;
         },
       } as unknown as Response);
 
-      const result = await params.models!();
-      expect(result).toEqual([]);
+      await expect(params.models!()).rejects.toBe(error);
     });
 
     it('should preserve contextWindowTokens from provider info', async () => {

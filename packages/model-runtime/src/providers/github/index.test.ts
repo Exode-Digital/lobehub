@@ -467,6 +467,26 @@ describe('LobeGithubAI - custom features', () => {
       await expect(params.models!()).rejects.toThrow('Invalid JSON');
     });
 
+    it('should throw with cause when model list request fails', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        json: async () => ({ error: { message: 'Access denied' } }),
+        ok: false,
+        status: 403,
+      });
+
+      try {
+        await params.models!();
+        expect.fail('Expected models() to reject');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('GitHub models API request failed');
+        expect((error as Error).cause).toEqual({
+          body: { error: { message: 'Access denied' } },
+          status: 403,
+        });
+      }
+    });
+
     it('should handle models with missing optional fields', async () => {
       const minimalModel: GithubModelCard = {
         capabilities: [],

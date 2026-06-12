@@ -465,13 +465,20 @@ export class LobeGoogleAI implements LobeRuntimeAI {
         signal: options?.signal,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.ok === false) {
+        const body = await response.json().catch(() => undefined);
+        throw new Error('Google models API request failed', {
+          cause: { body, status: response.status },
+        });
       }
 
       const json = await response.json();
 
-      const modelList: GoogleModelCard[] = json.models;
+      const modelList: GoogleModelCard[] | undefined = json.models;
+
+      if (!Array.isArray(modelList)) {
+        throw new Error('Google models API returned an invalid response', { cause: json });
+      }
 
       const processedModels = modelList.map((model) => {
         const id = model.name.replace(/^models\//, '');

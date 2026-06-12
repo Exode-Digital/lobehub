@@ -3,7 +3,7 @@ import { ModelProvider } from 'model-bank';
 import type { OpenAICompatibleFactoryOptions } from '../../core/openaiCompatibleFactory';
 import { createOpenAICompatibleRuntime } from '../../core/openaiCompatibleFactory';
 import { processMultiProviderModelList } from '../../utils/modelParse';
-import type { OpenRouterModelCard, OpenRouterReasoning } from './type';
+import type { OpenRouterReasoning } from './type';
 
 const formatPrice = (price?: string) => {
   if (price === undefined || price === '-1') return undefined;
@@ -93,17 +93,19 @@ export const params = {
     chatCompletion: () => process.env.DEBUG_OPENROUTER_CHAT_COMPLETION === '1',
   },
   models: async () => {
-    let modelList: OpenRouterModelCard[] = [];
+    const response = await fetch('https://openrouter.ai/api/v1/models');
+    const data = await response.json();
 
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/models');
-      if (response.ok) {
-        const data = await response.json();
-        modelList = data['data'];
-      }
-    } catch (error) {
-      console.error('Failed to fetch OpenRouter frontend models:', error);
-      return [];
+    if (response.ok === false) {
+      throw new Error('OpenRouter models API request failed', {
+        cause: { body: data, status: response.status },
+      });
+    }
+
+    const modelList = data['data'];
+
+    if (!Array.isArray(modelList)) {
+      throw new Error('OpenRouter models API returned an invalid response', { cause: data });
     }
 
     // Process the model info fetched from the frontend and convert to standard format

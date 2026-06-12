@@ -2,7 +2,7 @@ import { ModelProvider } from 'model-bank';
 
 import { createOpenAICompatibleRuntime } from '../../core/openaiCompatibleFactory';
 import { processMultiProviderModelList } from '../../utils/modelParse';
-import type { StraicoChatModel, StraicoModelsResponse } from './type';
+import type { StraicoModelsResponse } from './type';
 
 const formatPrice = (pricing?: { coins?: number; words?: number }) => {
   if (!pricing || typeof pricing.coins !== 'number' || typeof pricing.words !== 'number') {
@@ -27,7 +27,6 @@ export const LobeStraicoAI = createOpenAICompatibleRuntime({
   baseURL: 'https://api.straico.com/v0',
   chatCompletion: {
     handlePayload: (payload) => {
-       
       const { model, ...rest } = payload;
 
       return {
@@ -41,56 +40,55 @@ export const LobeStraicoAI = createOpenAICompatibleRuntime({
     chatCompletion: () => process.env.DEBUG_STRAICO_CHAT_COMPLETION === '1',
   },
   models: async ({ client }) => {
-    try {
-      const url = 'https://api.straico.com/v1/models';
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${client.apiKey}`,
-        },
-        method: 'GET',
+    const url = 'https://api.straico.com/v1/models';
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${client.apiKey}`,
+      },
+      method: 'GET',
+    });
+
+    const json: StraicoModelsResponse = await response.json();
+
+    if (response.ok === false) {
+      throw new Error('Straico models API request failed', {
+        cause: { body: json, status: response.status },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const json: StraicoModelsResponse = await response.json();
-      const chatModels: StraicoChatModel[] = json?.data?.chat || []; // There are also audio and image models to be adapted
-
-      // Transform Straico models to standardized format
-      const formattedModels = chatModels.map((model) => {
-        const inputPrice = formatPrice(model.pricing);
-        const outputPrice = inputPrice; // Straico uses same price for input/output
-
-        return {
-          contextWindowTokens: model.word_limit
-            ? Math.floor(model.word_limit * 1.33) // Convert words to tokens
-            : undefined,
-          description: model.metadata?.pros?.join('; ') || '',
-          displayName: cleanModelName(model.name),
-          enabled: model.enabled ?? false,
-          functionCall: false,
-          id: model.model,
-          maxOutput: model.max_output,
-          pricing: inputPrice
-            ? {
-                input: inputPrice,
-                output: outputPrice,
-              }
-            : undefined,
-          reasoning: model.metadata?.applications?.includes('Reasoning') ?? false,
-          vision: model.metadata?.features?.includes('Image input') ?? false,
-        };
-      });
-
-      return await processMultiProviderModelList(formattedModels, 'straico');
-    } catch (error) {
-      console.warn(
-        'Failed to fetch Straico models. Please ensure your Straico API key is valid:',
-        error,
-      );
-      return [];
     }
+
+    const chatModels = json?.data?.chat; // There are also audio and image models to be adapted
+
+    if (!Array.isArray(chatModels)) {
+      throw new Error('Straico models API returned an invalid response', { cause: json });
+    }
+
+    // Transform Straico models to standardized format
+    const formattedModels = chatModels.map((model) => {
+      const inputPrice = formatPrice(model.pricing);
+      const outputPrice = inputPrice; // Straico uses same price for input/output
+
+      return {
+        contextWindowTokens: model.word_limit
+          ? Math.floor(model.word_limit * 1.33) // Convert words to tokens
+          : undefined,
+        description: model.metadata?.pros?.join('; ') || '',
+        displayName: cleanModelName(model.name),
+        enabled: model.enabled ?? false,
+        functionCall: false,
+        id: model.model,
+        maxOutput: model.max_output,
+        pricing: inputPrice
+          ? {
+              input: inputPrice,
+              output: outputPrice,
+            }
+          : undefined,
+        reasoning: model.metadata?.applications?.includes('Reasoning') ?? false,
+        vision: model.metadata?.features?.includes('Image input') ?? false,
+      };
+    });
+
+    return await processMultiProviderModelList(formattedModels, 'straico');
   },
   provider: ModelProvider.Straico,
 });

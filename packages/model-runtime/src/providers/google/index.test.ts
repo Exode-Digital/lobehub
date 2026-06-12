@@ -996,4 +996,27 @@ describe('models', () => {
       'x-goog-api-key': apiKey,
     });
   });
+
+  it('should throw Error with cause when model list request fails', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ error: { message: 'API key expired' } }),
+      ok: false,
+      status: 403,
+    });
+    global.fetch = mockFetch;
+
+    const localInstance = new LobeGoogleAI({ apiKey: 'test-google-key' });
+
+    try {
+      await localInstance.models();
+      expect.fail('Expected models() to reject');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('Google models API request failed');
+      expect((error as Error).cause).toEqual({
+        body: { error: { message: 'API key expired' } },
+        status: 403,
+      });
+    }
+  });
 });

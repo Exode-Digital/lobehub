@@ -8,7 +8,7 @@ import { createOpenAICompatibleRuntime } from '../../core/openaiCompatibleFactor
 import { convertIterableToStream } from '../../core/streams';
 import { AgentRuntimeErrorType } from '../../types/error';
 import { processMultiProviderModelList } from '../../utils/modelParse';
-import type { HuggingFaceRouterModelCard, HuggingFaceRouterResponse } from './type';
+import type { HuggingFaceRouterResponse } from './type';
 
 export const params = {
   chatCompletion: {
@@ -54,17 +54,19 @@ export const params = {
     chatCompletion: () => process.env.DEBUG_HUGGINGFACE_CHAT_COMPLETION === '1',
   },
   models: async () => {
-    let modelList: HuggingFaceRouterModelCard[] = [];
+    const response = await fetch('https://router.huggingface.co/v1/models');
+    const data: HuggingFaceRouterResponse = await response.json();
 
-    try {
-      const response = await fetch('https://router.huggingface.co/v1/models');
-      if (response.ok) {
-        const data: HuggingFaceRouterResponse = await response.json();
-        modelList = data.data;
-      }
-    } catch (error) {
-      console.error('Failed to fetch HuggingFace router models:', error);
-      return [];
+    if (response.ok === false) {
+      throw new Error('HuggingFace models API request failed', {
+        cause: { body: data, status: response.status },
+      });
+    }
+
+    const modelList = data.data;
+
+    if (!Array.isArray(modelList)) {
+      throw new Error('HuggingFace models API returned an invalid response', { cause: data });
     }
 
     const formattedModels = modelList

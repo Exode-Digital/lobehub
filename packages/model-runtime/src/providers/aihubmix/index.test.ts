@@ -190,27 +190,31 @@ describe('LobeAiHubMixAI', () => {
       expect(passedModels.find((m) => m.id === 'gpt-4o')).toBeDefined();
     });
 
-    it('should return empty array on non-ok HTTP response', async () => {
+    it('should throw with cause on non-ok HTTP response', async () => {
       mockFetch.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
 
-      const list = await instance.models();
-      expect(list).toEqual([]);
+      try {
+        await instance.models();
+        expect.fail('Expected models() to reject');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('AiHubMix models API request failed');
+        expect((error as Error).cause).toEqual({ body: 'Unauthorized', status: 401 });
+      }
     });
 
-    it('should return empty array on network error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network Error'));
+    it('should preserve network errors', async () => {
+      const error = new Error('Network Error');
+      mockFetch.mockRejectedValueOnce(error);
 
-      const list = await instance.models();
-      expect(list).toEqual([]);
+      await expect(instance.models()).rejects.toBe(error);
     });
 
-    it('should return empty array on timeout (AbortError)', async () => {
-      mockFetch.mockRejectedValueOnce(
-        Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }),
-      );
+    it('should preserve timeout errors', async () => {
+      const error = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+      mockFetch.mockRejectedValueOnce(error);
 
-      const list = await instance.models();
-      expect(list).toEqual([]);
+      await expect(instance.models()).rejects.toBe(error);
     });
   });
 });
