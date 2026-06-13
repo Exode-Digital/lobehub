@@ -306,4 +306,8 @@ agent-testing/
 
 - agent-browser: see [references/agent-browser.md](./references/agent-browser.md#gotchas)
 - Electron: see [ui/electron.md](./ui/electron.md#electron-gotchas)
+- **Electron dev app is not `LobeHub`** — do not drive desktop dev validation with
+  `osascript tell application "LobeHub"` or by selecting the installed product app.
+  Start/attach through `electron-dev.sh` + CDP, and verify the renderer target,
+  worktree, and branch before sending input.
 - osascript: see [references/osascript.md](./references/osascript.md#gotchas)
