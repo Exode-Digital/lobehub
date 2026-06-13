@@ -1,5 +1,5 @@
 import { exec, execFile } from 'node:child_process';
-import { platform } from 'node:os';
+import { homedir, platform } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -259,11 +259,33 @@ export const claudeCodeDetector: IToolDetector = createValidatedDetector({
 });
 
 /**
+ * OpenAI's Codex desktop app bundles the real `codex` CLI inside its `.app`
+ * but does not symlink it onto PATH. A user who installed only the desktop app
+ * would therefore fail PATH-based detection, so we probe the bundled binary as
+ * a fallback (tried after the PATH lookup, so a user's own install still wins).
+ * Both the system (`/Applications`) and per-user (`~/Applications`) install
+ * locations are covered. macOS only for now.
+ */
+const getCodexCandidates = (): string[] => {
+  const candidates = ['codex'];
+
+  if (platform() === 'darwin') {
+    const bundleRelativePath = 'Codex.app/Contents/Resources/codex';
+    candidates.push(
+      path.join('/Applications', bundleRelativePath),
+      path.join(homedir(), 'Applications', bundleRelativePath),
+    );
+  }
+
+  return candidates;
+};
+
+/**
  * OpenAI Codex CLI
  * @see https://github.com/openai/codex
  */
 export const codexDetector: IToolDetector = createValidatedDetector({
-  candidates: ['codex'],
+  candidates: getCodexCandidates(),
   description: 'Codex - OpenAI agentic coding CLI',
   name: 'codex',
   priority: 2,

@@ -182,6 +182,42 @@ describe('cliAgentDetectors', () => {
       expect(execFileMock).toHaveBeenCalledTimes(2);
     });
 
+    it('falls back to the bundled Codex.app binary when `codex` is not on PATH', async () => {
+      // OpenAI's Codex desktop app ships the real CLI inside the .app but does
+      // not symlink it onto PATH. A user with only the desktop app installed
+      // has no `codex` on PATH, so detection must fall back to the bundle.
+      const originalShell = process.env.SHELL;
+      const originalPath = process.env.PATH;
+      // Unset SHELL and pin an already-normalized PATH so `resolveCommandPath`
+      // makes exactly one `which` attempt (no login-shell / normalized-PATH
+      // fallback retry), leaving the bundle as the only viable candidate.
+      delete process.env.SHELL;
+      process.env.PATH = '/usr/bin:/bin';
+
+      try {
+        // 1) `which codex` → not found
+        callExecFileError(new Error('not found'));
+        // 2) absolute bundle path resolves directly (no `which`); validate it
+        callExecFile('codex-cli 0.138.0-alpha.7');
+
+        const { codexDetector } = await import('../cliAgentDetectors');
+        const status = await codexDetector.detect();
+
+        expect(status.available).toBe(true);
+        expect(status.path).toBe('/Applications/Codex.app/Contents/Resources/codex');
+        expect(status.version).toBe('codex-cli 0.138.0-alpha.7');
+
+        // The validation call must target the bundled binary directly via execFile.
+        expect(execMock).not.toHaveBeenCalled();
+        const validateCall = execFileMock.mock.calls.at(-1)!;
+        expect(validateCall[0]).toBe('/Applications/Codex.app/Contents/Resources/codex');
+        expect(validateCall[1]).toEqual(['--version']);
+      } finally {
+        process.env.SHELL = originalShell;
+        process.env.PATH = originalPath;
+      }
+    });
+
     it('falls back to the login shell PATH for tools installed by shell setup', async () => {
       const originalPath = process.env.PATH;
       const originalShell = process.env.SHELL;
