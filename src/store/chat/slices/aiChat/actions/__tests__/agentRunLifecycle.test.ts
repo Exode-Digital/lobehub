@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { topicService } from '@/services/topic';
 import { emitClientAgentSignalSourceEvent } from '@/store/chat/slices/aiChat/actions/agentSignalBridge';
 
-import { runAgentRunLifecycle } from '../agentRunLifecycle';
+import { AGENT_RUN_LIFECYCLE_EXTENSIONS, runAgentRunLifecycle } from '../agentRunLifecycle';
 
 const desktopEnv = vi.hoisted(() => ({ isDesktop: false }));
 const desktopNotificationMock = vi.hoisted(() => ({
@@ -102,6 +102,51 @@ describe('runAgentRunLifecycle', () => {
     vi.clearAllMocks();
     desktopEnv.isDesktop = false;
     vi.useRealTimers();
+  });
+
+  it('exposes mounted lifecycle effects from a single extension registry', () => {
+    const registry = AGENT_RUN_LIFECYCLE_EXTENSIONS.map(({ id, order, phase, runtimeTypes }) => ({
+      id,
+      order,
+      phase,
+      ...(runtimeTypes ? { runtimeTypes: [...runtimeTypes] } : {}),
+    }));
+
+    expect(registry).toEqual([
+      { id: 'post-persist.topic-title-generation', order: 10, phase: 'afterUserMessagePersisted' },
+      {
+        id: 'signal.client-runtime-start',
+        order: 10,
+        phase: 'runStart',
+        runtimeTypes: ['client'],
+      },
+      {
+        id: 'signal.gateway-runtime-event',
+        order: 10,
+        phase: 'runEvent',
+        runtimeTypes: ['gateway', 'heterogeneous'],
+      },
+      {
+        id: 'operation.gateway-complete-cleanup',
+        order: 10,
+        phase: 'operationComplete',
+        runtimeTypes: ['gateway'],
+      },
+      { id: 'operation.complete-callback', order: 20, phase: 'operationComplete' },
+      { id: 'runtime.after-completion-callbacks', order: 10, phase: 'runComplete' },
+      { id: 'runtime.before-run-complete-callbacks', order: 20, phase: 'runComplete' },
+      { id: 'runtime.operation-complete', order: 30, phase: 'runComplete' },
+      { id: 'runtime.unread-completed-marker', order: 40, phase: 'runComplete' },
+      { id: 'signal.runtime-complete', order: 50, phase: 'runComplete' },
+      { id: 'runtime.queued-message-drain', order: 60, phase: 'runComplete' },
+      { id: 'runtime.after-run-complete-callbacks', order: 70, phase: 'runComplete' },
+      {
+        id: 'notification.client-run-complete',
+        order: 80,
+        phase: 'runComplete',
+        runtimeTypes: ['client'],
+      },
+    ]);
   });
 
   it('runs completion hooks, completes operation, emits signal, then drains queued messages', async () => {

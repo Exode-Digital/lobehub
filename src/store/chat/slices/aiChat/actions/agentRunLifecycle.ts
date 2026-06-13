@@ -89,6 +89,170 @@ export type AgentRunLifecycleEvent =
 
 type AgentRunLifecycleNonCompleteEvent = Exclude<AgentRunLifecycleEvent, { phase: 'runComplete' }>;
 
+interface AgentRunLifecycleExtensionContext {
+  contextKey?: string;
+  lifecycleContext?: ConversationContext;
+  operation?: ChatStore['operations'][string];
+  queuedMessageCount: number;
+}
+
+interface AgentRunLifecycleExtension {
+  id: string;
+  order: number;
+  phase: AgentRunLifecycleEvent['phase'];
+  run: (
+    event: AgentRunLifecycleEvent,
+    context: AgentRunLifecycleExtensionContext,
+  ) => Promise<void> | void;
+  runtimeTypes?: AgentRunRuntimeType[];
+}
+
+// Application-level control plane for side effects mounted on agent run lifecycle events.
+export const AGENT_RUN_LIFECYCLE_EXTENSIONS = [
+  {
+    id: 'post-persist.topic-title-generation',
+    order: 10,
+    phase: 'afterUserMessagePersisted',
+    run: (event) => {
+      if (event.phase !== 'afterUserMessagePersisted') return;
+      return runAfterUserMessagePersistedLifecycle(event);
+    },
+  },
+  {
+    id: 'signal.client-runtime-start',
+    order: 10,
+    phase: 'runStart',
+    run: (event) => {
+      if (event.phase !== 'runStart') return;
+      startAgentRunLifecycle(event);
+    },
+    runtimeTypes: ['client'],
+  },
+  {
+    id: 'signal.gateway-runtime-event',
+    order: 10,
+    phase: 'runEvent',
+    run: (event) => {
+      if (event.phase !== 'runEvent') return;
+      runAgentRunEventLifecycle(event);
+    },
+    runtimeTypes: ['gateway', 'heterogeneous'],
+  },
+  {
+    id: 'operation.gateway-complete-cleanup',
+    order: 10,
+    phase: 'operationComplete',
+    run: (event) => {
+      if (event.phase !== 'operationComplete') return;
+      completeGatewayOperation(event);
+    },
+    runtimeTypes: ['gateway'],
+  },
+  {
+    id: 'operation.complete-callback',
+    order: 20,
+    phase: 'operationComplete',
+    run: async (event) => {
+      if (event.phase !== 'operationComplete') return;
+      await event.onComplete?.();
+    },
+  },
+  {
+    id: 'runtime.after-completion-callbacks',
+    order: 10,
+    phase: 'runComplete',
+    run: (event, context) => {
+      if (event.phase !== 'runComplete') return;
+      const afterCompletionCallbacks =
+        context.operation?.metadata?.runtimeHooks?.afterCompletionCallbacks;
+      return runCallbacks('afterCompletion', afterCompletionCallbacks);
+    },
+  },
+  {
+    id: 'runtime.before-run-complete-callbacks',
+    order: 20,
+    phase: 'runComplete',
+    run: (event) => {
+      if (event.phase !== 'runComplete') return;
+      return runCallbacks('beforeRunComplete', event.beforeRunComplete);
+    },
+  },
+  {
+    id: 'runtime.operation-complete',
+    order: 30,
+    phase: 'runComplete',
+    run: (event, context) => {
+      if (event.phase !== 'runComplete') return;
+      if (event.status !== 'failed' || context.operation?.status !== 'failed') {
+        event.get().completeOperation(event.operationId);
+      }
+    },
+  },
+  {
+    id: 'runtime.unread-completed-marker',
+    order: 40,
+    phase: 'runComplete',
+    run: (event) => {
+      if (event.phase !== 'runComplete' || event.status !== 'completed') return;
+      const completedOp = event.get().operations[event.operationId];
+      if (completedOp?.context.agentId) {
+        event.get().markUnreadCompleted(completedOp.context.agentId, completedOp.context.topicId);
+      }
+    },
+  },
+  {
+    id: 'signal.runtime-complete',
+    order: 50,
+    phase: 'runComplete',
+    run: (event) => {
+      if (event.phase !== 'runComplete') return;
+      emitRuntimeCompleteSignal(event);
+    },
+  },
+  {
+    id: 'runtime.queued-message-drain',
+    order: 60,
+    phase: 'runComplete',
+    run: (event, context) => {
+      if (event.phase !== 'runComplete') return;
+      context.queuedMessageCount =
+        event.status === 'completed' && event.drainQueuedMessages !== false
+          ? drainQueuedMessagesAfterComplete({
+              context: context.lifecycleContext ?? event.context,
+              contextKey: context.contextKey ?? messageMapKey(event.context),
+              get: event.get,
+              queueDrainDelayMs: event.queueDrainDelayMs ?? 100,
+            })
+          : 0;
+    },
+  },
+  {
+    id: 'runtime.after-run-complete-callbacks',
+    order: 70,
+    phase: 'runComplete',
+    run: (event) => {
+      if (event.phase !== 'runComplete') return;
+      return runCallbacks('afterRunComplete', event.afterRunComplete);
+    },
+  },
+  {
+    id: 'notification.client-run-complete',
+    order: 80,
+    phase: 'runComplete',
+    run: (event, context) => {
+      if (event.phase !== 'runComplete') return;
+      return runClientCompleteLifecycle({
+        context: context.lifecycleContext ?? event.context,
+        contextKey: context.contextKey ?? messageMapKey(event.context),
+        get: event.get,
+        runtimeType: event.runtimeType,
+        status: event.status,
+      });
+    },
+    runtimeTypes: ['client'],
+  },
+] satisfies AgentRunLifecycleExtension[];
+
 export function runAgentRunLifecycle(
   event: { phase: 'runComplete' } & CompleteAgentRunLifecycleParams,
 ): Promise<CompleteAgentRunLifecycleResult>;
@@ -98,13 +262,11 @@ export async function runAgentRunLifecycle(
 ): Promise<CompleteAgentRunLifecycleResult | void> {
   switch (event.phase) {
     case 'afterUserMessagePersisted': {
-      const { phase: _, ...params } = event;
-      return runAfterUserMessagePersistedLifecycle(params);
+      return runAgentRunLifecycleExtensions(event);
     }
 
     case 'operationComplete': {
-      const { phase: _, ...params } = event;
-      return completeAgentRunOperationLifecycle(params);
+      return runAgentRunLifecycleExtensions(event);
     }
 
     case 'runComplete': {
@@ -113,17 +275,39 @@ export async function runAgentRunLifecycle(
     }
 
     case 'runEvent': {
-      const { phase: _, ...params } = event;
-      runAgentRunEventLifecycle(params);
-      return;
+      return runAgentRunLifecycleExtensions(event);
     }
 
     case 'runStart': {
-      const { phase: _, ...params } = event;
-      startAgentRunLifecycle(params);
+      return runAgentRunLifecycleExtensions(event);
     }
   }
 }
+
+const getRuntimeType = (event: AgentRunLifecycleEvent): AgentRunRuntimeType | undefined => {
+  return 'runtimeType' in event ? event.runtimeType : undefined;
+};
+
+const runAgentRunLifecycleExtensions = async (
+  event: AgentRunLifecycleEvent,
+  context: AgentRunLifecycleExtensionContext = { queuedMessageCount: 0 },
+): Promise<void> => {
+  const runtimeType = getRuntimeType(event);
+  const extensions = AGENT_RUN_LIFECYCLE_EXTENSIONS.filter((extension) => {
+    if (extension.phase !== event.phase) return false;
+    if (!extension.runtimeTypes) return true;
+    if (!runtimeType) return false;
+    return extension.runtimeTypes.includes(runtimeType);
+  }).sort((a, b) => a.order - b.order);
+
+  for (const extension of extensions) {
+    try {
+      await extension.run(event, context);
+    } catch (error) {
+      console.error(`[AgentRunLifecycle] extension failed (${extension.id}):`, error);
+    }
+  }
+};
 
 const runCallbacks = async (
   phase: string,
@@ -302,6 +486,32 @@ const runAgentRunEventLifecycle = ({
   }
 };
 
+const emitRuntimeCompleteSignal = ({
+  anchorMessageId,
+  assistantMessageId,
+  context,
+  operationId,
+  runtimeType,
+  status,
+  triggerMessageId,
+}: { phase: 'runComplete' } & CompleteAgentRunLifecycleParams): void => {
+  void emitClientAgentSignalSourceEvent({
+    payload: {
+      agentId: context.agentId,
+      ...(anchorMessageId ? { anchorMessageId } : {}),
+      assistantMessageId,
+      operationId,
+      runtimeType,
+      status,
+      threadId: context.threadId ?? undefined,
+      topicId: context.topicId ?? undefined,
+      ...(triggerMessageId ? { triggerMessageId } : {}),
+    },
+    sourceId: `${operationId}:${runtimeType}:complete`,
+    sourceType: 'client.runtime.complete',
+  });
+};
+
 const runClientCompleteLifecycle = async ({
   context,
   contextKey,
@@ -353,88 +563,42 @@ const runClientCompleteLifecycle = async ({
 };
 
 const completeAgentRunLifecycle = async ({
-  afterRunComplete,
-  anchorMessageId,
-  assistantMessageId,
-  beforeRunComplete,
   context,
-  drainQueuedMessages = true,
   get,
   operationId,
-  queueDrainDelayMs = 100,
-  runtimeType,
-  status,
-  triggerMessageId,
+  ...params
 }: CompleteAgentRunLifecycleParams): Promise<CompleteAgentRunLifecycleResult> => {
   const operation = get().operations[operationId];
   const lifecycleContext = toLifecycleContext(context, operation?.context);
   const contextKey = messageMapKey(lifecycleContext);
+  const extensionContext: AgentRunLifecycleExtensionContext = {
+    contextKey,
+    lifecycleContext: lifecycleContext as ConversationContext,
+    operation,
+    queuedMessageCount: 0,
+  };
 
-  const afterCompletionCallbacks = operation?.metadata?.runtimeHooks?.afterCompletionCallbacks?.map(
-    (callback) => callback,
+  await runAgentRunLifecycleExtensions(
+    {
+      ...params,
+      context,
+      get,
+      operationId,
+      phase: 'runComplete',
+    },
+    extensionContext,
   );
 
-  await runCallbacks('afterCompletion', afterCompletionCallbacks);
-  await runCallbacks('beforeRunComplete', beforeRunComplete);
-
-  if (status !== 'failed' || operation?.status !== 'failed') {
-    get().completeOperation(operationId);
-  }
-
-  const completedOp = get().operations[operationId];
-  if (status === 'completed' && completedOp?.context.agentId) {
-    get().markUnreadCompleted(completedOp.context.agentId, completedOp.context.topicId);
-  }
-
-  void emitClientAgentSignalSourceEvent({
-    payload: {
-      agentId: context.agentId,
-      ...(anchorMessageId ? { anchorMessageId } : {}),
-      assistantMessageId,
-      operationId,
-      runtimeType,
-      status,
-      threadId: context.threadId ?? undefined,
-      topicId: context.topicId ?? undefined,
-      ...(triggerMessageId ? { triggerMessageId } : {}),
-    },
-    sourceId: `${operationId}:${runtimeType}:complete`,
-    sourceType: 'client.runtime.complete',
-  });
-
-  const queuedMessageCount =
-    status === 'completed' && drainQueuedMessages
-      ? drainQueuedMessagesAfterComplete({
-          context: lifecycleContext as ConversationContext,
-          contextKey,
-          get,
-          queueDrainDelayMs,
-        })
-      : 0;
-
-  await runCallbacks('afterRunComplete', afterRunComplete);
-  await runClientCompleteLifecycle({
-    context: lifecycleContext as ConversationContext,
-    contextKey,
-    get,
-    runtimeType,
-    status,
-  });
-
-  return { contextKey, queuedMessageCount };
+  return { contextKey, queuedMessageCount: extensionContext.queuedMessageCount };
 };
 
-const completeAgentRunOperationLifecycle = async ({
+const completeGatewayOperation = ({
   context,
   get,
-  onComplete,
   operationId,
   runtimeType,
-}: CompleteAgentRunOperationLifecycleParams): Promise<void> => {
-  if (runtimeType !== 'gateway') {
-    await onComplete?.();
-    return;
-  }
+}: { phase: 'operationComplete' } & CompleteAgentRunOperationLifecycleParams): void => {
+  if (runtimeType !== 'gateway') return;
 
   get().completeOperation(operationId);
 
@@ -448,8 +612,6 @@ const completeAgentRunOperationLifecycle = async ({
     });
     topicService.updateTopicMetadata(context.topicId, { runningOperation: null }).catch(() => {});
   }
-
-  await onComplete?.();
 };
 
 const applyTopicTitle = async (
