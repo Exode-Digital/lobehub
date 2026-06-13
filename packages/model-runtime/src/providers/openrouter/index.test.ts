@@ -1350,11 +1350,11 @@ describe('LobeOpenRouterAI - custom features', () => {
     it('should throw with cause when fetch fails', async () => {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue({
-          json: async () => ({ error: { message: 'Unauthorized' } }),
-          ok: false,
-          status: 401,
-        }),
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(JSON.stringify({ error: { message: 'Unauthorized' } }), { status: 401 }),
+          ),
       );
 
       try {
@@ -1366,6 +1366,25 @@ describe('LobeOpenRouterAI - custom features', () => {
         expect((error as Error).cause).toEqual({
           body: { error: { message: 'Unauthorized' } },
           status: 401,
+        });
+      }
+    });
+
+    it('should preserve non-JSON error body when model request fails', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('<html>bad gateway</html>', { status: 502 })),
+      );
+
+      try {
+        await params.models();
+        expect.fail('Expected models() to reject');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('OpenRouter models API request failed');
+        expect((error as Error).cause).toEqual({
+          body: '<html>bad gateway</html>',
+          status: 502,
         });
       }
     });

@@ -10,6 +10,18 @@ const formatPrice = (price?: string) => {
   return Number((Number(price) * 1e6).toPrecision(5));
 };
 
+const parseOpenRouterModelsErrorBody = async (response: Response) => {
+  const body = await response.text();
+
+  if (!body) return '';
+
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return body;
+  }
+};
+
 export const params = {
   baseURL: 'https://openrouter.ai/api/v1',
   chatCompletion: {
@@ -94,14 +106,15 @@ export const params = {
   },
   models: async () => {
     const response = await fetch('https://openrouter.ai/api/v1/models');
-    const data = await response.json();
 
     if (response.ok === false) {
+      const body = await parseOpenRouterModelsErrorBody(response);
       throw new Error('OpenRouter models API request failed', {
-        cause: { body: data, status: response.status },
+        cause: { body, status: response.status },
       });
     }
 
+    const data = await response.json();
     const modelList = data['data'];
 
     if (!Array.isArray(modelList)) {
