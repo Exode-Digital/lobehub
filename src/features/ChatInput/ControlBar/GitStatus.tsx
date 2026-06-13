@@ -1,6 +1,6 @@
 import { Icon, Tooltip } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { ArrowDownIcon, ArrowUpIcon, GitBranchIcon, GitPullRequest } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpIcon, GitBranchIcon, GitPullRequest, InfoIcon } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +58,21 @@ const styles = createStaticStyles(({ css }) => {
     `,
     diffStatModified: css`
       color: ${cssVar.colorWarning};
+    `,
+    ghMissingHint: css`
+      display: flex;
+      flex: none;
+      align-items: center;
+
+      padding-inline: 2px;
+
+      color: ${cssVar.colorTextQuaternary};
+
+      transition: color 0.2s;
+
+      &:hover {
+        color: ${cssVar.colorTextTertiary};
+      }
     `,
     prTrigger: css`
       cursor: pointer;
@@ -393,7 +408,7 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub, deviceId }) => {
       {pullNode}
       {pushNode}
       {diffNode}
-      {data.pullRequest && (
+      {data.pullRequest ? (
         <>
           <div className={styles.separator} />
           <Tooltip title={prTooltip}>
@@ -403,6 +418,14 @@ const GitStatus = memo<GitStatusProps>(({ path, isGithub, deviceId }) => {
             </div>
           </Tooltip>
         </>
+      ) : (
+        data.ghMissing && (
+          <Tooltip title={prTooltip}>
+            <div className={styles.ghMissingHint}>
+              <Icon icon={InfoIcon} size={12} />
+            </div>
+          </Tooltip>
+        )
       )}
     </>
   );
