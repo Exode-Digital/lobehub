@@ -125,6 +125,7 @@ describe('RuntimeExecutors', () => {
 
     mockMessageModel = {
       create: vi.fn().mockResolvedValue({ id: 'msg-123' }),
+      deleteMessage: vi.fn().mockResolvedValue({ success: true }),
       // call_llm does a parent existence preflight; return a truthy row by
       // default so existing tests don't have to stub it.
       findById: vi.fn().mockResolvedValue({ id: 'msg-existing' }),
@@ -4893,22 +4894,20 @@ describe('RuntimeExecutors', () => {
       expect((result.nextContext?.payload as any).stop).toBe(true);
     });
 
-    it('call_tool injects agentDelegation runner for server callAgent delegation', async () => {
-      const mockExecSubAgent = vi
+    it('call_tool lets server callAgent run as a deferred tool via the subAgent runner', async () => {
+      const mockExecVirtualSubAgent = vi
         .fn()
         .mockResolvedValue({ success: true, operationId: 'child-op', threadId: 'thread-child' });
       const ctxWithCallback = {
         ...ctx,
-        execSubAgent: mockExecSubAgent,
+        execVirtualSubAgent: mockExecVirtualSubAgent,
         topicId: 'topic-123',
       };
 
-      mockMessageModel.create
-        .mockResolvedValueOnce({ id: 'task-msg-id' })
-        .mockResolvedValueOnce({ id: 'tool-msg-id' });
+      mockMessageModel.create.mockResolvedValueOnce({ id: 'tool-msg-id' });
       mockToolExecutionService.executeTool.mockImplementation(
         async (_payload: any, context: any) => {
-          const delegation = await context.agentDelegation.run({
+          const subAgent = await context.subAgent.run({
             agentId: 'target-agent-id',
             description: 'Call agent target-agent',
             instruction: 'Do something useful',
@@ -4916,15 +4915,16 @@ describe('RuntimeExecutors', () => {
           });
 
           return {
-            content: 'Delegated work to agent "target-agent-id"',
+            content: '',
+            deferred: true,
             executionTime: 10,
             state: {
+              status: 'pending',
+              subOperationId: subAgent.subOperationId,
               targetAgentId: 'target-agent-id',
-              taskMessageId: delegation.taskMessageId,
-              threadId: delegation.threadId,
-              type: 'agentDelegation',
+              threadId: subAgent.threadId,
             },
-            success: delegation.started,
+            success: subAgent.started,
           };
         },
       );
@@ -4954,97 +4954,43 @@ describe('RuntimeExecutors', () => {
       expect(mockMessageModel.create).toHaveBeenCalledWith(
         expect.objectContaining({
           agentId: 'parent-agent-id',
-          metadata: expect.objectContaining({
-            subAgentId: 'target-agent-id',
+          plugin: expect.objectContaining({
+            apiName: 'callAgent',
+            identifier: 'lobe-agent-management',
           }),
+          pluginState: { status: 'pending' },
           parentId: 'assistant-msg-id',
-          role: 'task',
+          role: 'tool',
+          tool_call_id: 'tool-call-1',
           topicId: 'topic-123',
         }),
       );
-      expect(mockExecSubAgent).toHaveBeenCalledWith(
+      expect(mockExecVirtualSubAgent).toHaveBeenCalledWith(
         expect.objectContaining({
           agentId: 'target-agent-id',
           instruction: 'Do something useful',
-          parentMessageId: 'task-msg-id',
+          parentMessageId: 'tool-msg-id',
           parentOperationId: 'op-123',
           title: 'Call agent target-agent',
           topicId: 'topic-123',
         }),
       );
-      expect(result.nextContext?.phase).toBe('tool_result');
-      expect((result.nextContext?.payload as any).stop).toBeUndefined();
-    });
-
-    it('call_tool marks delegated task message when server callAgent delegation fails to start', async () => {
-      const mockExecSubAgent = vi
-        .fn()
-        .mockResolvedValue({ error: 'queue unavailable', operationId: 'child-op', success: false });
-      const ctxWithCallback = {
-        ...ctx,
-        execSubAgent: mockExecSubAgent,
-        topicId: 'topic-123',
-      };
-
-      mockMessageModel.create
-        .mockResolvedValueOnce({ id: 'task-msg-id' })
-        .mockResolvedValueOnce({ id: 'tool-msg-id' });
-      mockToolExecutionService.executeTool.mockImplementation(
-        async (_payload: any, context: any) => {
-          const delegation = await context.agentDelegation.run({
-            agentId: 'target-agent-id',
-            description: 'Call agent target-agent',
-            instruction: 'Do something useful',
-            timeout: 1_800_000,
-          });
-
-          return {
-            content: delegation.error || 'Delegation failed',
-            error: {
-              code: 'AGENT_DELEGATION_START_FAILED',
-              message: delegation.error,
-            },
-            executionTime: 10,
-            state: {
-              operationId: delegation.operationId,
-              targetAgentId: 'target-agent-id',
-              taskMessageId: delegation.taskMessageId,
-              threadId: delegation.threadId,
-              type: 'agentDelegation',
-            },
-            success: delegation.started,
-          };
-        },
-      );
-
-      const executors = createRuntimeExecutors(ctxWithCallback);
-      const state = createMockState();
-      const instruction = {
-        payload: {
-          parentMessageId: 'assistant-msg-id',
-          toolCalling: {
-            apiName: 'callAgent',
-            arguments: JSON.stringify({
-              agentId: 'target-agent-id',
-              instruction: 'Do something useful',
-              runAsTask: true,
-            }),
-            id: 'tool-call-1',
-            identifier: 'lobe-agent-management',
-            type: 'default' as const,
-          },
-        },
-        type: 'call_tool' as const,
-      };
-
-      const result = await executors.call_tool!(instruction, state);
-
-      expect(mockMessageModel.update).toHaveBeenCalledWith('task-msg-id', {
-        content: 'queue unavailable',
-      });
-      expect(result.nextContext?.phase).toBe('tool_result');
-      expect((result.nextContext?.payload as any).isSuccess).toBe(false);
-      expect((result.nextContext?.payload as any).stop).toBeUndefined();
+      expect(result.newState.status).toBe('waiting_for_async_tool');
+      expect(result.newState.pendingToolsCalling).toEqual([
+        expect.objectContaining({
+          apiName: 'callAgent',
+          id: 'tool-call-1',
+          identifier: 'lobe-agent-management',
+        }),
+      ]);
+      expect(result.events).toEqual([
+        expect.objectContaining({
+          canResume: true,
+          reason: 'async_tool',
+          type: 'interrupted',
+        }),
+      ]);
+      expect(result.nextContext).toBeUndefined();
     });
 
     it('exec_sub_agent executor creates task message and calls execSubAgent callback', async () => {
@@ -5080,7 +5026,7 @@ describe('RuntimeExecutors', () => {
         expect.objectContaining({
           agentId: 'parent-agent-id',
           metadata: expect.objectContaining({
-            subAgentId: 'target-agent-id',
+            targetAgentId: 'target-agent-id',
           }),
           role: 'task',
           parentId: 'tool-msg-id',

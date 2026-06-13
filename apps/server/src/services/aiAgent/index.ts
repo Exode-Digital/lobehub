@@ -2941,12 +2941,12 @@ export class AiAgentService {
     });
 
     // 3. Create hooks for updating Thread metadata and source message
-    const threadHooks = this.createThreadHooks({
-      logScope: options.logScope,
-      sourceMessageId: parentMessageId,
+    const threadHooks = this.createThreadHooks(
+      thread.id,
       startedAt,
-      threadId: thread.id,
-    });
+      parentMessageId,
+      options.logScope,
+    );
     // For the virtual sub-agent path, also register the completion bridge that
     // backfills the parent's placeholder tool message and resumes the parked
     // parent op once the child run is done. Registered last so its tool-message
@@ -3185,13 +3185,12 @@ export class AiAgentService {
    * Create hooks for tracking Thread metadata updates during SubAgent execution.
    * Replaces the legacy createThreadMetadataCallbacks with the hooks system.
    */
-  private createThreadHooks(params: {
-    logScope: 'execSubAgent' | 'execVirtualSubAgent';
-    sourceMessageId: string;
-    startedAt: string;
-    threadId: string;
-  }): AgentHook[] {
-    const { logScope, sourceMessageId, startedAt, threadId } = params;
+  private createThreadHooks(
+    threadId: string,
+    startedAt: string,
+    sourceMessageId: string,
+    logScope: 'execSubAgent' | 'execVirtualSubAgent',
+  ): AgentHook[] {
     let accumulatedToolCalls = 0;
 
     return [

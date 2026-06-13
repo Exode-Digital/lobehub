@@ -43,48 +43,60 @@ export const agentManagementRuntime: ServerRuntimeRegistration = {
       ): Promise<ToolExecutionResult> => {
         const { agentId, instruction, taskTitle, timeout } = params;
 
-        // Server runtime delegates agent calls asynchronously because there is
-        // no client-side `registerAfterCompletion` callback available to run a
-        // synchronous agent handoff.
-        if (!ctx.agentDelegation) {
+        if (ctx.isSubAgent) {
           return {
-            content: 'Agent delegation is not available in this runtime.',
-            error: { code: 'AGENT_DELEGATION_UNAVAILABLE' },
+            content: 'Agent calls cannot be triggered from within another sub-agent.',
+            error: {
+              code: 'NESTED_AGENT_CALL_NOT_ALLOWED',
+              message: 'Agent calls cannot be triggered from within another sub-agent.',
+            },
+            success: false,
+          };
+        }
+
+        if (!ctx.subAgent) {
+          return {
+            content: 'Agent execution is not available in this runtime.',
+            error: { code: 'AGENT_CALL_UNAVAILABLE' },
+            success: false,
+          };
+        }
+
+        if (!instruction || typeof instruction !== 'string') {
+          return {
+            content: 'instruction is required.',
+            error: { code: 'INVALID_ARGUMENTS', message: 'instruction is required.' },
             success: false,
           };
         }
 
         const description = taskTitle || `Call agent ${agentId}`;
-        const result = await ctx.agentDelegation.run({
+        const { started, subOperationId, threadId } = await ctx.subAgent.run({
           agentId,
           description,
           instruction,
           timeout: timeout || 1_800_000,
         });
 
-        if (!result.started) {
+        if (!started) {
           return {
-            content: result.error || `Failed to delegate work to agent "${agentId}".`,
-            error: { code: 'AGENT_DELEGATION_START_FAILED', message: result.error },
-            state: {
-              operationId: result.operationId,
-              targetAgentId: agentId,
-              taskMessageId: result.taskMessageId,
-              threadId: result.threadId,
-              type: 'agentDelegation',
+            content: `Agent "${agentId}" failed to start.`,
+            error: {
+              code: 'AGENT_CALL_START_FAILED',
+              message: `Agent "${agentId}" failed to start.`,
             },
             success: false,
           };
         }
 
         return {
-          content: `Delegated work to agent "${agentId}"${taskTitle ? `: ${taskTitle}` : ''}`,
+          content: '',
+          deferred: true,
           state: {
-            operationId: result.operationId,
+            status: 'pending',
+            subOperationId,
             targetAgentId: agentId,
-            taskMessageId: result.taskMessageId,
-            threadId: result.threadId,
-            type: 'agentDelegation',
+            threadId,
           },
           success: true,
         };

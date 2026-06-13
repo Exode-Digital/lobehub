@@ -89,7 +89,6 @@ import { FileService } from '@/server/services/file';
 import { MessageService } from '@/server/services/message';
 import { OnboardingService } from '@/server/services/onboarding';
 import {
-  type ServerAgentDelegationRunner,
   type ServerSubAgentRunner,
   type ToolExecutionResultResponse,
   type ToolExecutionService,
@@ -402,97 +401,6 @@ const buildServerVirtualSubAgentRunner = (
         subOperationId: result?.operationId,
         threadId: result?.threadId ?? '',
       };
-    },
-  };
-};
-
-/**
- * Build the per-tool-call delegated-agent runner used by the server
- * `agent-management.callAgent` runtime. It creates a parent-visible task card,
- * then starts the target agent in an isolation thread. Unlike `callSubAgent`,
- * this runner does not park the parent operation for async completion.
- */
-const buildServerAgentDelegationRunner = (
-  ctx: RuntimeExecutorContext,
-  state: AgentState,
-  parentMessageId: string,
-): ServerAgentDelegationRunner | undefined => {
-  const execSubAgent = ctx.execSubAgent;
-  if (!execSubAgent) return undefined;
-
-  const parentAgentId = state.metadata?.agentId;
-  const topicId = ctx.topicId ?? state.metadata?.topicId;
-  if (!parentAgentId || !topicId) return undefined;
-
-  return {
-    run: async ({ agentId: targetAgentId, description, instruction, timeout }) => {
-      if (state.metadata?.isSubAgent === true) {
-        return {
-          error: 'Agent delegation cannot be triggered from within a sub-agent run.',
-          started: false,
-        };
-      }
-
-      const taskMessage = await ctx.messageModel.create({
-        agentId: parentAgentId,
-        content: '',
-        groupId: state.metadata?.groupId ?? undefined,
-        metadata: {
-          instruction,
-          subAgentId: targetAgentId,
-          taskTitle: description,
-        },
-        parentId: parentMessageId,
-        role: 'task',
-        threadId: state.metadata?.threadId ?? undefined,
-        topicId,
-      });
-
-      try {
-        const result = (await execSubAgent({
-          agentId: targetAgentId,
-          groupId: state.metadata?.groupId ?? undefined,
-          instruction,
-          parentMessageId: taskMessage.id,
-          parentOperationId: ctx.operationId,
-          timeout,
-          title: description,
-          topicId,
-        })) as
-          | { error?: string; operationId?: string; success?: boolean; threadId?: string }
-          | undefined;
-
-        if (!result?.success) {
-          const error = result?.error || 'Delegated agent run failed to start.';
-          await ctx.messageModel.update(taskMessage.id, { content: error });
-
-          return {
-            error,
-            operationId: result?.operationId,
-            started: false,
-            taskMessageId: taskMessage.id,
-            threadId: result?.threadId,
-          };
-        }
-
-        return {
-          operationId: result.operationId,
-          started: true,
-          taskMessageId: taskMessage.id,
-          threadId: result.threadId,
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await ctx.messageModel.update(taskMessage.id, {
-          content: `Task failed to start: ${message}`,
-        });
-
-        return {
-          error: message,
-          started: false,
-          taskMessageId: taskMessage.id,
-        };
-      }
     },
   };
 };
@@ -2555,11 +2463,6 @@ export const createRuntimeExecutors = (
               toolExecutionService.executeTool(chatToolPayload, {
                 activeDeviceId: state.metadata?.activeDeviceId,
                 agentId: state.metadata?.agentId,
-                agentDelegation: buildServerAgentDelegationRunner(
-                  ctx,
-                  state,
-                  payload.parentMessageId,
-                ),
                 documentId: state.metadata?.documentId,
                 execSubAgent: ctx.execSubAgent,
                 executionTimeoutMs: timeoutMs,
@@ -3142,11 +3045,6 @@ export const createRuntimeExecutors = (
                   toolExecutionService.executeTool(chatToolPayload, {
                     activeDeviceId: state.metadata?.activeDeviceId,
                     agentId: state.metadata?.agentId,
-                    agentDelegation: buildServerAgentDelegationRunner(
-                      ctx,
-                      state,
-                      payload.parentMessageId,
-                    ),
                     documentId: state.metadata?.documentId,
                     execSubAgent: ctx.execSubAgent,
                     executionTimeoutMs: timeoutMs,
@@ -3567,7 +3465,7 @@ export const createRuntimeExecutors = (
         metadata: {
           instruction: task.instruction,
           taskTitle: task.description,
-          ...(targetAgentId && targetAgentId !== agentId && { subAgentId: targetAgentId }),
+          ...(targetAgentId && targetAgentId !== agentId && { targetAgentId }),
         },
         parentId: parentMessageId,
         role: 'task',
@@ -3695,7 +3593,7 @@ export const createRuntimeExecutors = (
           metadata: {
             instruction: task.instruction,
             taskTitle: task.description,
-            ...(targetAgentId && targetAgentId !== agentId && { subAgentId: targetAgentId }),
+            ...(targetAgentId && targetAgentId !== agentId && { targetAgentId }),
           },
           parentId: parentMessageId,
           role: 'task',

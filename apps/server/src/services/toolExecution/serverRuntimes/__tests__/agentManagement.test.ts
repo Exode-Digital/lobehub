@@ -75,7 +75,7 @@ describe('agentManagementRuntime', () => {
   });
 
   describe('callAgent', () => {
-    it('fails when server agent delegation is unavailable', async () => {
+    it('fails when the server sub-agent runner is unavailable', async () => {
       const runtime = createRuntime();
 
       const result = await runtime.callAgent(
@@ -88,14 +88,13 @@ describe('agentManagementRuntime', () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toMatchObject({ code: 'AGENT_DELEGATION_UNAVAILABLE' });
+      expect(result.error).toMatchObject({ code: 'AGENT_CALL_UNAVAILABLE' });
     });
 
-    it('delegates server callAgent runs through the injected runner', async () => {
+    it('returns a deferred tool result and forks the target agent through the sub-agent runner', async () => {
       const run = vi.fn().mockResolvedValue({
-        operationId: 'op-child',
         started: true,
-        taskMessageId: 'task-msg',
+        subOperationId: 'op-child',
         threadId: 'thread-child',
       });
       const runtime = createRuntime();
@@ -109,7 +108,7 @@ describe('agentManagementRuntime', () => {
           timeout: 1234,
         },
         {
-          agentDelegation: { run },
+          subAgent: { run },
           toolManifestMap: {},
         },
       );
@@ -120,22 +119,23 @@ describe('agentManagementRuntime', () => {
         instruction: 'Do delegated work',
         timeout: 1234,
       });
-      expect(result.success).toBe(true);
+      expect(result).toMatchObject({
+        content: '',
+        deferred: true,
+        success: true,
+      });
       expect(result.state).toMatchObject({
-        operationId: 'op-child',
+        status: 'pending',
+        subOperationId: 'op-child',
         targetAgentId: 'agent-target',
-        taskMessageId: 'task-msg',
         threadId: 'thread-child',
-        type: 'agentDelegation',
       });
     });
 
-    it('returns failure state when delegated run cannot start', async () => {
+    it('returns a non-deferred failure when the target agent cannot start', async () => {
       const run = vi.fn().mockResolvedValue({
-        error: 'queue unavailable',
-        operationId: 'op-child',
         started: false,
-        taskMessageId: 'task-msg',
+        threadId: '',
       });
       const runtime = createRuntime();
 
@@ -146,22 +146,37 @@ describe('agentManagementRuntime', () => {
           runAsTask: true,
         },
         {
-          agentDelegation: { run },
+          subAgent: { run },
           toolManifestMap: {},
         },
       );
 
       expect(result.success).toBe(false);
       expect(result.error).toMatchObject({
-        code: 'AGENT_DELEGATION_START_FAILED',
-        message: 'queue unavailable',
+        code: 'AGENT_CALL_START_FAILED',
       });
-      expect(result.state).toMatchObject({
-        operationId: 'op-child',
-        targetAgentId: 'agent-target',
-        taskMessageId: 'task-msg',
-        type: 'agentDelegation',
-      });
+      expect(result.deferred).toBeUndefined();
+    });
+
+    it('rejects nested server callAgent execution', async () => {
+      const run = vi.fn();
+      const runtime = createRuntime();
+
+      const result = await runtime.callAgent(
+        {
+          agentId: 'agent-target',
+          instruction: 'Do delegated work',
+        },
+        {
+          isSubAgent: true,
+          subAgent: { run },
+          toolManifestMap: {},
+        },
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatchObject({ code: 'NESTED_AGENT_CALL_NOT_ALLOWED' });
+      expect(run).not.toHaveBeenCalled();
     });
   });
 
