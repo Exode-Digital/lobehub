@@ -24,8 +24,12 @@ const TasksMessage = memo<TasksMessageProps>(({ id }) => {
   const actionsConfig = useConversationStore((s) => s.actionsBar?.assistant);
   const tasks = (item as UIChatMessage)?.tasks?.filter(Boolean) as UIChatMessage[] | undefined;
 
-  // Use first task's agentId for avatar, or fallback to undefined
-  const firstTaskAgentId = tasks?.[0]?.agentId;
+  // Use first task's delegated target agent when available.
+  const firstTaskMetadata = tasks?.[0]?.metadata;
+  const firstTaskLegacyTargetAgentId = (firstTaskMetadata as { targetAgentId?: string } | undefined)
+    ?.targetAgentId;
+  const firstTaskAgentId =
+    firstTaskMetadata?.subAgentId || firstTaskLegacyTargetAgentId || tasks?.[0]?.agentId;
   const avatar = useAgentMeta(firstTaskAgentId);
 
   if (!tasks || tasks.length === 0) {

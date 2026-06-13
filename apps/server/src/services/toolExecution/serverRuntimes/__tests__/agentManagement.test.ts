@@ -74,6 +74,97 @@ describe('agentManagementRuntime', () => {
     expect(PluginModel).toHaveBeenCalledWith(expect.anything(), 'user-1', 'workspace-1');
   });
 
+  describe('callAgent', () => {
+    it('fails when server agent delegation is unavailable', async () => {
+      const runtime = createRuntime();
+
+      const result = await runtime.callAgent(
+        {
+          agentId: 'agent-target',
+          instruction: 'Do delegated work',
+          runAsTask: true,
+        },
+        { toolManifestMap: {} },
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatchObject({ code: 'AGENT_DELEGATION_UNAVAILABLE' });
+    });
+
+    it('delegates server callAgent runs through the injected runner', async () => {
+      const run = vi.fn().mockResolvedValue({
+        operationId: 'op-child',
+        started: true,
+        taskMessageId: 'task-msg',
+        threadId: 'thread-child',
+      });
+      const runtime = createRuntime();
+
+      const result = await runtime.callAgent(
+        {
+          agentId: 'agent-target',
+          instruction: 'Do delegated work',
+          runAsTask: true,
+          taskTitle: 'Delegated task',
+          timeout: 1234,
+        },
+        {
+          agentDelegation: { run },
+          toolManifestMap: {},
+        },
+      );
+
+      expect(run).toHaveBeenCalledWith({
+        agentId: 'agent-target',
+        description: 'Delegated task',
+        instruction: 'Do delegated work',
+        timeout: 1234,
+      });
+      expect(result.success).toBe(true);
+      expect(result.state).toMatchObject({
+        operationId: 'op-child',
+        targetAgentId: 'agent-target',
+        taskMessageId: 'task-msg',
+        threadId: 'thread-child',
+        type: 'agentDelegation',
+      });
+    });
+
+    it('returns failure state when delegated run cannot start', async () => {
+      const run = vi.fn().mockResolvedValue({
+        error: 'queue unavailable',
+        operationId: 'op-child',
+        started: false,
+        taskMessageId: 'task-msg',
+      });
+      const runtime = createRuntime();
+
+      const result = await runtime.callAgent(
+        {
+          agentId: 'agent-target',
+          instruction: 'Do delegated work',
+          runAsTask: true,
+        },
+        {
+          agentDelegation: { run },
+          toolManifestMap: {},
+        },
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatchObject({
+        code: 'AGENT_DELEGATION_START_FAILED',
+        message: 'queue unavailable',
+      });
+      expect(result.state).toMatchObject({
+        operationId: 'op-child',
+        targetAgentId: 'agent-target',
+        taskMessageId: 'task-msg',
+        type: 'agentDelegation',
+      });
+    });
+  });
+
   describe('searchAgent', () => {
     it('reports the real total and a pagination hint when more agents exist', async () => {
       mockQueryAgents.mockResolvedValue(makeAgents(20));

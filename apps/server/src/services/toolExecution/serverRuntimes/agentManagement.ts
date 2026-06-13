@@ -43,20 +43,48 @@ export const agentManagementRuntime: ServerRuntimeRegistration = {
       ): Promise<ToolExecutionResult> => {
         const { agentId, instruction, taskTitle, timeout } = params;
 
-        // Server runtime always uses the legacy async invocation path because
-        // there is no client-side `registerAfterCompletion` callback available
-        // to execute synchronous agent calls.
-        return {
-          content: `🚀 Triggered async task to call agent "${agentId}"${taskTitle ? `: ${taskTitle}` : ''}`,
-          state: {
-            parentMessageId: ctx.messageId,
-            task: {
-              description: taskTitle || `Call agent ${agentId}`,
-              instruction,
+        // Server runtime delegates agent calls asynchronously because there is
+        // no client-side `registerAfterCompletion` callback available to run a
+        // synchronous agent handoff.
+        if (!ctx.agentDelegation) {
+          return {
+            content: 'Agent delegation is not available in this runtime.',
+            error: { code: 'AGENT_DELEGATION_UNAVAILABLE' },
+            success: false,
+          };
+        }
+
+        const description = taskTitle || `Call agent ${agentId}`;
+        const result = await ctx.agentDelegation.run({
+          agentId,
+          description,
+          instruction,
+          timeout: timeout || 1_800_000,
+        });
+
+        if (!result.started) {
+          return {
+            content: result.error || `Failed to delegate work to agent "${agentId}".`,
+            error: { code: 'AGENT_DELEGATION_START_FAILED', message: result.error },
+            state: {
+              operationId: result.operationId,
               targetAgentId: agentId,
-              timeout: timeout || 1_800_000,
+              taskMessageId: result.taskMessageId,
+              threadId: result.threadId,
+              type: 'agentDelegation',
             },
-            type: 'execSubAgent',
+            success: false,
+          };
+        }
+
+        return {
+          content: `Delegated work to agent "${agentId}"${taskTitle ? `: ${taskTitle}` : ''}`,
+          state: {
+            operationId: result.operationId,
+            targetAgentId: agentId,
+            taskMessageId: result.taskMessageId,
+            threadId: result.threadId,
+            type: 'agentDelegation',
           },
           success: true,
         };

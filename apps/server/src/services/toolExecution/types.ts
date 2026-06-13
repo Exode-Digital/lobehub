@@ -53,9 +53,50 @@ export interface ServerSubAgentRunner {
   run: (params: ServerSubAgentRunParams) => Promise<ServerSubAgentRunResult>;
 }
 
+export interface ServerAgentDelegationRunParams {
+  /** Target agent id to execute the delegated work. */
+  agentId: string;
+  /** Short label shown in the parent conversation task card and thread title. */
+  description: string;
+  /** Detailed instruction/prompt for the delegated agent run. */
+  instruction: string;
+  /** Optional per-run timeout in milliseconds. */
+  timeout?: number;
+}
+
+export interface ServerAgentDelegationRunResult {
+  /** Human-readable failure detail when the delegated run could not start. */
+  error?: string;
+  /** The spawned child operation id. */
+  operationId?: string;
+  /** Whether the delegated run was actually started. */
+  started: boolean;
+  /** Parent conversation task-card message id. */
+  taskMessageId?: string;
+  /** Isolation thread holding the delegated agent's execution trace. */
+  threadId?: string;
+}
+
+/**
+ * Server-side runner for `lobe-agent-management.callAgent`.
+ *
+ * It creates a parent-conversation `role: task` card, then starts an isolated
+ * run using the target agent. Unlike `subAgent`, it does not park/resume the
+ * parent operation: this is a background delegation.
+ */
+export interface ServerAgentDelegationRunner {
+  run: (params: ServerAgentDelegationRunParams) => Promise<ServerAgentDelegationRunResult>;
+}
+
 export interface ToolExecutionContext {
   /** Target device ID for device proxy tool calls */
   activeDeviceId?: string;
+  /**
+   * Server-side delegated-agent runner. Used by agent-management `callAgent`
+   * to create a visible task card and run the target agent in an isolation
+   * thread without relying on legacy exec_sub_agent tool-result states.
+   */
+  agentDelegation?: ServerAgentDelegationRunner;
   /** Agent ID executing the tool call */
   agentId?: string;
   /** Current page document ID for page-scoped conversations */

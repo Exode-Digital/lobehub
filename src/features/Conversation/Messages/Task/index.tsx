@@ -28,7 +28,7 @@ interface TaskMessageProps {
   isLatestItem?: boolean;
 }
 
-const TaskMessage = memo<TaskMessageProps>(({ id, index, disableEditing }) => {
+const TaskMessage = memo<TaskMessageProps>(({ id, index: _index, disableEditing }) => {
   const { t } = useTranslation('chat');
 
   // Get message and actionsConfig from ConversationStore
@@ -37,7 +37,9 @@ const TaskMessage = memo<TaskMessageProps>(({ id, index, disableEditing }) => {
 
   const { agentId, groupId, error, role, content, createdAt, metadata, taskDetail } = item;
 
-  const avatar = useAgentMeta(agentId);
+  const legacyTargetAgentId = (metadata as { targetAgentId?: string } | undefined)?.targetAgentId;
+  const displayAgentId = metadata?.subAgentId || legacyTargetAgentId || agentId;
+  const avatar = useAgentMeta(displayAgentId);
 
   // Get editing and generating state from ConversationStore
   const editing = useConversationStore(messageStateSelectors.isMessageEditing(id));
@@ -58,7 +60,7 @@ const TaskMessage = memo<TaskMessageProps>(({ id, index, disableEditing }) => {
     } else {
       openChatSettings();
     }
-  }, [isInbox]);
+  }, [isInbox, openChatSettings, toggleSystemRole]);
 
   const onDoubleClick = useDoubleClickEdit({ disableEditing, error, id, role });
 
@@ -88,7 +90,7 @@ const TaskMessage = memo<TaskMessageProps>(({ id, index, disableEditing }) => {
     >
       {taskDetail?.clientMode ? (
         <ClientTaskDetail
-          agentId={agentId !== 'supervisor' ? agentId : undefined}
+          agentId={displayAgentId !== 'supervisor' ? displayAgentId : undefined}
           groupId={groupId}
           messageId={id}
           taskDetail={taskDetail}
