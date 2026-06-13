@@ -148,42 +148,55 @@ export class MessageCollector {
         continue;
       }
 
+      // The reducer's `lastToolMsgIdEver` re-mount deliberately parents BOTH a
+      // toolless NARRATION turn (text the model emits between tool batches) AND
+      // the tool-bearing CONTINUATION onto this same tool. We must collect every
+      // narration turn inline AND keep walking the continuation. Returning on
+      // whichever child sorts first (the old behavior) orphaned the continuation
+      // into a separate bubble — the "断链" bug.
+      let continuation: Message | undefined;
+      let collectedToollessFollower = false;
       for (const nextMsg of nextMessages) {
         // Skip an already-collected follower: a duplicated tool_call_id can make
         // collectToolMessages surface an earlier turn's tool result first, and
         // returning after that no-op recursion would drop this assistant's real
         // continuation under a later tool.
         if (processedIds.has(nextMsg.id)) continue;
-        // Only continue if the next assistant has the SAME agentId
-        // Different agentId means it's a different agent responding (e.g., via speak tool)
-        const isSameAgent = nextMsg.agentId === groupAgentId;
         // Skip signal-tagged toolless callbacks () — they're a
         // side-channel under the same parent tool and get collected
         // separately by `collectFlatSignalCallbacks`.
         if (getMessageSignal(nextMsg)) continue;
+        // Only continue if the next assistant has the SAME agentId.
+        // Different agentId means it's a different agent responding (e.g., via
+        // speak tool) — leave it to be processed separately.
+        if (nextMsg.role !== 'assistant' || nextMsg.agentId !== groupAgentId) continue;
 
-        if (
-          nextMsg.role === 'assistant' &&
-          nextMsg.tools &&
-          nextMsg.tools.length > 0 &&
-          isSameAgent
-        ) {
-          // Continue the chain only for same agent
-          this.collectAssistantChain(
-            nextMsg,
-            allMessages,
-            assistantChain,
-            allToolMessages,
-            processedIds,
-          );
-          return;
-        } else if (nextMsg.role === 'assistant' && isSameAgent) {
-          // Final assistant without tools (same agent)
+        if (nextMsg.tools && nextMsg.tools.length > 0) {
+          // First tool-bearing continuation — walk it after collecting any
+          // narration turns parked under the same tool.
+          if (!continuation) continuation = nextMsg;
+        } else {
+          // Toolless narration turn — include it inline and keep scanning for
+          // the continuation rather than terminating here.
+          processedIds.add(nextMsg.id);
           assistantChain.push(nextMsg);
-          return;
+          collectedToollessFollower = true;
         }
-        // If different agentId, don't add to chain - let it be processed separately
       }
+
+      if (continuation) {
+        this.collectAssistantChain(
+          continuation,
+          allMessages,
+          assistantChain,
+          allToolMessages,
+          processedIds,
+        );
+        return;
+      }
+      // Only narration turn(s) under this tool and no continuation: the chain
+      // ends here (matches the old "final toolless assistant" terminal).
+      if (collectedToollessFollower) return;
     }
   }
 

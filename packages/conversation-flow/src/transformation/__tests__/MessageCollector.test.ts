@@ -816,5 +816,53 @@ describe('MessageCollector', () => {
 
       expect(assistantChain.map((m) => m.id)).toEqual(['ast-A', 'ast-B', 'ast-C']);
     });
+
+    it('keeps a tool-bearing continuation grouped when a toolless narration turn shares the same parent tool (断链 regression)', () => {
+      // Real heterogeneous-agent shape: the model runs a tool batch, emits a
+      // short narration turn (toolless text — "收到，先确认…"), then runs more
+      // tools. The reducer's `lastToolMsgIdEver` re-mount parks BOTH the
+      // narration turn (ast-narrate) AND the next tool turn (ast-C) under the
+      // SAME tool (tool-1). The collector used to return on whichever sorted
+      // first (ast-narrate), orphaning ast-C into a separate bubble — the 断链.
+      const astA = mkAssistant('ast-A', { parentId: 'user-1', tools: [bashTool('tc-1')] });
+      const tool1 = mkTool('tool-1', { parentId: 'ast-A', tool_call_id: 'tc-1' });
+      // Narration turn — toolless text, created first (earlier createdAt).
+      const astNarrate = mkAssistant('ast-narrate', {
+        content: 'collected summary',
+        createdAt: 1,
+        parentId: 'tool-1',
+      });
+      // Tool-bearing continuation — re-mounted onto the same tool, created later.
+      const astC = mkAssistant('ast-C', {
+        createdAt: 2,
+        parentId: 'tool-1',
+        tools: [bashTool('tc-2')],
+      });
+      const tool2 = mkTool('tool-2', { createdAt: 3, parentId: 'ast-C', tool_call_id: 'tc-2' });
+      const astFinal = mkAssistant('ast-final', { createdAt: 4, parentId: 'tool-2' });
+
+      const allMessages: Message[] = [astA, tool1, astNarrate, astC, tool2, astFinal];
+      const collector = new MessageCollector(new Map(), new Map());
+
+      const assistantChain: Message[] = [];
+      const allToolMessages: Message[] = [];
+      collector.collectAssistantChain(
+        astA,
+        allMessages,
+        assistantChain,
+        allToolMessages,
+        new Set(),
+      );
+
+      // All four assistants stay in ONE chain (one AssistantGroup) — narration
+      // inline, continuation walked, nothing orphaned.
+      expect(assistantChain.map((m) => m.id)).toEqual([
+        'ast-A',
+        'ast-narrate',
+        'ast-C',
+        'ast-final',
+      ]);
+      expect(allToolMessages.map((m) => m.id)).toEqual(['tool-1', 'tool-2']);
+    });
   });
 });
