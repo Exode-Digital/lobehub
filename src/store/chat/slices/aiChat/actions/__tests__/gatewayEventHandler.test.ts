@@ -193,6 +193,31 @@ describe('createGatewayEventHandler', () => {
       );
     });
 
+    it('should replace text content for snapshot chunks', async () => {
+      const store = createMockStore();
+      const handler = createHandler(store);
+
+      handler(makeEvent('stream_chunk', { chunkType: 'text', content: 'Draft with tail' }));
+      handler(
+        makeEvent('stream_chunk', {
+          chunkType: 'text',
+          content: 'Draft',
+          contentMode: 'snapshot',
+        }),
+      );
+      handler(makeEvent('stream_chunk', { chunkType: 'text', content: ' final' }));
+      await flush();
+
+      expect(store.internal_dispatchMessage).toHaveBeenLastCalledWith(
+        {
+          id: 'msg-initial',
+          type: 'updateMessage',
+          value: { content: 'Draft final' },
+        },
+        { operationId: 'op-1' },
+      );
+    });
+
     it('should accumulate reasoning content', async () => {
       const store = createMockStore();
       const handler = createHandler(store);

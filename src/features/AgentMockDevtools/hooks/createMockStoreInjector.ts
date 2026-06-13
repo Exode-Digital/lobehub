@@ -101,8 +101,13 @@ export const createMockStoreInjector = (get: () => ChatStore, params: MockStoreI
         const data = event.data as StreamChunkData | undefined;
         if (!data) break;
 
-        if (data.chunkType === 'text' && data.content) {
-          accumulatedContent += data.content;
+        if (
+          data.chunkType === 'text' &&
+          typeof data.content === 'string' &&
+          (data.content || data.contentMode === 'snapshot')
+        ) {
+          accumulatedContent =
+            data.contentMode === 'snapshot' ? data.content : accumulatedContent + data.content;
           get().internal_dispatchMessage(
             {
               id: assistantMessageId,

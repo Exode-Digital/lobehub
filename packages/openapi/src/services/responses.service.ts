@@ -601,20 +601,35 @@ export class ResponsesService extends BaseService {
           if (event.type === 'stream_chunk') {
             const chunk = event.data as StreamChunkData;
 
-            if (chunk.chunkType === 'text' && chunk.content) {
+            if (
+              chunk.chunkType === 'text' &&
+              typeof chunk.content === 'string' &&
+              (chunk.content || chunk.contentMode === 'snapshot')
+            ) {
               // Start text message output item if not already started
               yield* startTextMessage(seq);
 
-              accumulatedText += chunk.content;
-              yield {
-                content_index: 0,
-                delta: chunk.content,
-                item_id: currentTextItemId,
-                logprobs: [],
-                output_index: currentOutputIndex,
-                sequence_number: seq.n++,
-                type: 'response.output_text.delta' as const,
-              };
+              const nextText =
+                chunk.contentMode === 'snapshot' ? chunk.content : accumulatedText + chunk.content;
+              const delta =
+                chunk.contentMode === 'snapshot'
+                  ? nextText.startsWith(accumulatedText)
+                    ? nextText.slice(accumulatedText.length)
+                    : ''
+                  : chunk.content;
+              accumulatedText = nextText;
+
+              if (delta) {
+                yield {
+                  content_index: 0,
+                  delta,
+                  item_id: currentTextItemId,
+                  logprobs: [],
+                  output_index: currentOutputIndex,
+                  sequence_number: seq.n++,
+                  type: 'response.output_text.delta' as const,
+                };
+              }
             } else if (chunk.chunkType === 'tools_calling' && chunk.toolsCalling) {
               // Close any open text message before emitting tool calls
               yield* finishTextMessage(seq, accumulatedText);

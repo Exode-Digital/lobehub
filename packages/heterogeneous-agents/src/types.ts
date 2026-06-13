@@ -166,6 +166,12 @@ export interface SubagentEventContext {
 export interface StreamChunkData {
   chunkType: StreamChunkType;
   content?: string;
+  /**
+   * Defaults to `delta`.
+   * `snapshot` means `content` is the full current text for this stream step,
+   * not an append-only token delta.
+   */
+  contentMode?: 'delta' | 'snapshot';
   reasoning?: string;
   /**
    * Subagent context for the entire chunk — peer to `toolsCalling`,

@@ -43,7 +43,110 @@ describe('CodexAdapter', () => {
       type: 'stream_start',
     });
     expect(text[0]).toMatchObject({
-      data: { chunkType: 'text', content: 'hello from codex' },
+      data: { chunkType: 'text', content: 'hello from codex', contentMode: 'snapshot' },
+      type: 'stream_chunk',
+    });
+  });
+
+  it('treats Codex agent message updates as replaceable text snapshots', () => {
+    const adapter = new CodexAdapter();
+
+    adapter.adapt({ type: 'turn.started' });
+    const draft = adapter.adapt({
+      item: {
+        id: 'item_0',
+        text: 'I will inspect the whole repository.',
+        type: 'agent_message',
+      },
+      type: 'item.updated',
+    });
+    const shortened = adapter.adapt({
+      item: {
+        id: 'item_0',
+        text: 'I will inspect the repo.',
+        type: 'agent_message',
+      },
+      type: 'item.updated',
+    });
+    const completed = adapter.adapt({
+      item: {
+        id: 'item_0',
+        text: 'I will inspect the repo first.',
+        type: 'agent_message',
+      },
+      type: 'item.completed',
+    });
+
+    expect(draft[0]).toMatchObject({
+      data: {
+        chunkType: 'text',
+        content: 'I will inspect the whole repository.',
+        contentMode: 'snapshot',
+      },
+      type: 'stream_chunk',
+    });
+    expect(shortened[0]).toMatchObject({
+      data: {
+        chunkType: 'text',
+        content: 'I will inspect the repo.',
+        contentMode: 'snapshot',
+      },
+      type: 'stream_chunk',
+    });
+    expect(completed[0]).toMatchObject({
+      data: {
+        chunkType: 'text',
+        content: 'I will inspect the repo first.',
+        contentMode: 'snapshot',
+      },
+      type: 'stream_chunk',
+    });
+  });
+
+  it('keeps prior agent message text when a later item updates in the same step', () => {
+    const adapter = new CodexAdapter();
+
+    adapter.adapt({ type: 'turn.started' });
+    adapter.adapt({
+      item: {
+        id: 'item_0',
+        text: 'First status update.',
+        type: 'agent_message',
+      },
+      type: 'item.completed',
+    });
+
+    const secondDraft = adapter.adapt({
+      item: {
+        id: 'item_1',
+        text: 'Second draft.',
+        type: 'agent_message',
+      },
+      type: 'item.updated',
+    });
+    const secondRevision = adapter.adapt({
+      item: {
+        id: 'item_1',
+        text: 'Second revised status update.',
+        type: 'agent_message',
+      },
+      type: 'item.updated',
+    });
+
+    expect(secondDraft[0]).toMatchObject({
+      data: {
+        chunkType: 'text',
+        content: 'First status update.\n\nSecond draft.',
+        contentMode: 'snapshot',
+      },
+      type: 'stream_chunk',
+    });
+    expect(secondRevision[0]).toMatchObject({
+      data: {
+        chunkType: 'text',
+        content: 'First status update.\n\nSecond revised status update.',
+        contentMode: 'snapshot',
+      },
       type: 'stream_chunk',
     });
   });
@@ -231,7 +334,11 @@ describe('CodexAdapter', () => {
 
     expect(secondMessage).toHaveLength(1);
     expect(secondMessage[0]).toMatchObject({
-      data: { chunkType: 'text', content: '\n\nSecond status update.' },
+      data: {
+        chunkType: 'text',
+        content: 'First status update.\n\nSecond status update.',
+        contentMode: 'snapshot',
+      },
       stepIndex: 0,
       type: 'stream_chunk',
     });
@@ -289,7 +396,11 @@ describe('CodexAdapter', () => {
 
     expect(nextMessage).toHaveLength(1);
     expect(nextMessage[0]).toMatchObject({
-      data: { chunkType: 'text', content: '\n\nThe broad search is done; continuing.' },
+      data: {
+        chunkType: 'text',
+        content: 'Continuing with narrower checks.\n\nThe broad search is done; continuing.',
+        contentMode: 'snapshot',
+      },
       stepIndex: 1,
       type: 'stream_chunk',
     });

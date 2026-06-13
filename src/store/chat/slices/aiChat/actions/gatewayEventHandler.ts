@@ -350,11 +350,16 @@ export const createGatewayEventHandler = (
           const data = event.data as StreamChunkData | undefined;
           if (!data) return;
 
-          if (data.chunkType === 'text' && data.content) {
+          if (
+            data.chunkType === 'text' &&
+            typeof data.content === 'string' &&
+            (data.content || data.contentMode === 'snapshot')
+          ) {
             // Text after reasoning marks the end of the thinking pass — see
             // `StreamingHandler.handleText` for the same transition.
             endReasoningIfNeeded();
-            accumulatedContent += data.content;
+            accumulatedContent =
+              data.contentMode === 'snapshot' ? data.content : accumulatedContent + data.content;
             hasStreamedContent = true;
             get().internal_dispatchMessage(
               {

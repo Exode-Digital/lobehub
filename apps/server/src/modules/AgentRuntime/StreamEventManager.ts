@@ -121,6 +121,12 @@ export interface StreamChunkData {
     | 'content_part'
     | 'reasoning_part';
   content?: string;
+  /**
+   * Defaults to `delta`.
+   * `snapshot` means `content` is the full current text for this stream step,
+   * not an append-only token delta.
+   */
+  contentMode?: 'delta' | 'snapshot';
   /** Multimodal content parts (text + images) */
   contentParts?: Array<{ text: string; type: 'text' } | { image: string; type: 'image' }>;
   /** Grounding/search data */

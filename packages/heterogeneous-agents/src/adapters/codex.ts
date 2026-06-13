@@ -522,9 +522,17 @@ const getCodexTerminalErrorStderr = (raw: any): string | undefined => {
   );
 };
 
+const getAgentMessageText = (item: unknown): string | undefined => {
+  if (!isRecord(item)) return;
+  const text = item.text;
+  return typeof text === 'string' ? text : undefined;
+};
+
 export class CodexAdapter implements AgentEventAdapter {
   private currentAgentMessageItemId?: string;
+  private currentAgentMessageText = '';
   private currentModel?: string;
+  private currentStepText = '';
   sessionId?: string;
 
   private hasTextInCurrentStep = false;
@@ -562,6 +570,9 @@ export class CodexAdapter implements AgentEventAdapter {
       }
       case 'item.started': {
         return this.handleItemStarted(raw.item);
+      }
+      case 'item.updated': {
+        return this.handleItemUpdated(raw.item);
       }
       case 'item.completed': {
         return this.handleItemCompleted(raw.item);
@@ -638,6 +649,8 @@ export class CodexAdapter implements AgentEventAdapter {
 
   private handleTurnStarted(): HeterogeneousAgentEvent[] {
     this.currentAgentMessageItemId = undefined;
+    this.currentAgentMessageText = '';
+    this.currentStepText = '';
     this.hasTextInCurrentStep = false;
     this.hasToolActivitySinceAgentMessage = false;
     this.resetStepToolCalls();
@@ -666,42 +679,16 @@ export class CodexAdapter implements AgentEventAdapter {
     return this.emitToolChunk(tool);
   }
 
+  private handleItemUpdated(item: any): HeterogeneousAgentEvent[] {
+    if (item?.type === 'agent_message') return this.handleAgentMessageItem(item);
+    return [];
+  }
+
   private handleItemCompleted(item: any): HeterogeneousAgentEvent[] {
     if (!item?.type) return [];
 
     if (item.type === 'agent_message') {
-      if (!item.text) return [];
-
-      const events: HeterogeneousAgentEvent[] = [];
-      const shouldStartNewStep =
-        this.hasToolActivitySinceAgentMessage &&
-        !!item.id &&
-        item.id !== this.currentAgentMessageItemId;
-
-      if (shouldStartNewStep) {
-        this.stepIndex += 1;
-        this.resetStepToolCalls();
-        this.hasTextInCurrentStep = false;
-        events.push(this.makeEvent('stream_end', {}));
-        events.push(this.makeEvent('stream_start', this.getStreamStartData({ newStep: true })));
-      }
-
-      const content =
-        this.hasTextInCurrentStep && item.id !== this.currentAgentMessageItemId
-          ? `\n\n${item.text}`
-          : item.text;
-
-      this.currentAgentMessageItemId = item.id;
-      this.hasTextInCurrentStep = true;
-      this.hasToolActivitySinceAgentMessage = false;
-      events.push(
-        this.makeEvent('stream_chunk', {
-          chunkType: 'text',
-          content,
-        }),
-      );
-
-      return events;
+      return this.handleAgentMessageItem(item);
     }
 
     if (!item.id) return [];
@@ -725,6 +712,50 @@ export class CodexAdapter implements AgentEventAdapter {
       this.makeEvent('tool_end', {
         isSuccess: isSuccessfulToolCompletion(item as CodexToolItem),
         toolCallId: item.id,
+      }),
+    );
+
+    return events;
+  }
+
+  private handleAgentMessageItem(item: any): HeterogeneousAgentEvent[] {
+    const text = getAgentMessageText(item);
+    if (text === undefined) return [];
+
+    const events: HeterogeneousAgentEvent[] = [];
+    const isNewAgentMessageItem = !!item.id && item.id !== this.currentAgentMessageItemId;
+    const shouldStartNewStep = this.hasToolActivitySinceAgentMessage && isNewAgentMessageItem;
+
+    if (shouldStartNewStep) {
+      this.stepIndex += 1;
+      this.resetStepToolCalls();
+      this.currentAgentMessageText = '';
+      this.currentStepText = '';
+      this.hasTextInCurrentStep = false;
+      events.push(this.makeEvent('stream_end', {}));
+      events.push(this.makeEvent('stream_start', this.getStreamStartData({ newStep: true })));
+    }
+
+    const separator = this.hasTextInCurrentStep && isNewAgentMessageItem ? '\n\n' : '';
+    if (isNewAgentMessageItem) {
+      this.currentStepText = `${this.currentStepText}${separator}${text}`;
+    } else {
+      const prefixLength = Math.max(
+        0,
+        this.currentStepText.length - this.currentAgentMessageText.length,
+      );
+      this.currentStepText = `${this.currentStepText.slice(0, prefixLength)}${text}`;
+    }
+
+    this.currentAgentMessageItemId = item.id;
+    this.currentAgentMessageText = text;
+    this.hasTextInCurrentStep = true;
+    this.hasToolActivitySinceAgentMessage = false;
+    events.push(
+      this.makeEvent('stream_chunk', {
+        chunkType: 'text',
+        content: this.currentStepText,
+        contentMode: 'snapshot',
       }),
     );
 

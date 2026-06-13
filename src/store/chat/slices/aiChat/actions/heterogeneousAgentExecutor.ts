@@ -1369,8 +1369,13 @@ export const executeHeterogeneousAgent = async (
           const mainAsstId = currentAssistantMessageId;
           persistQueue = persistQueue.then(() => reduceAndApplySubagent(event, mainAsstId));
         } else {
-          if (chunk?.chunkType === 'text' && chunk.content) {
-            accumulatedContent += chunk.content;
+          if (
+            chunk?.chunkType === 'text' &&
+            typeof chunk.content === 'string' &&
+            (chunk.content || chunk.contentMode === 'snapshot')
+          ) {
+            accumulatedContent =
+              chunk.contentMode === 'snapshot' ? chunk.content : accumulatedContent + chunk.content;
           }
           if (chunk?.chunkType === 'reasoning' && chunk.reasoning) {
             accumulatedReasoning += chunk.reasoning;

@@ -356,6 +356,15 @@ const codexAgentMessage = (id: string, text: string) => ({
   type: 'item.completed',
 });
 
+const codexAgentMessageUpdated = (id: string, text: string) => ({
+  item: {
+    id,
+    text,
+    type: 'agent_message',
+  },
+  type: 'item.updated',
+});
+
 const codexCommandStarted = (id: string, command: string) => ({
   item: {
     aggregated_output: '',
@@ -1320,6 +1329,38 @@ describe('heterogeneousAgentExecutor DB persistence', () => {
         model: 'gpt-5.5',
         provider: 'codex',
       });
+    });
+
+    it('should persist the latest Codex agent_message snapshot instead of appending snapshots', async () => {
+      const contentUpdates: Array<{ assistantId: string; content: string }> = [];
+      mockUpdateMessage.mockImplementation(async (id: string, val: any) => {
+        if (typeof val.content === 'string') {
+          contentUpdates.push({ assistantId: id, content: val.content });
+        }
+      });
+
+      await runWithEvents(
+        [
+          codexThreadStarted(),
+          codexTurnStarted(),
+          codexAgentMessageUpdated('item_0', 'Draft with stale tail'),
+          codexAgentMessageUpdated('item_0', 'Draft'),
+          codexAgentMessage('item_0', 'Draft final'),
+          codexTurnCompleted({ input_tokens: 10, output_tokens: 3 }),
+        ],
+        {
+          params: {
+            heterogeneousProvider: { command: 'codex', type: 'codex' as const },
+          },
+        },
+      );
+
+      expect(
+        contentUpdates.findLast((update) => update.assistantId === 'ast-initial')?.content,
+      ).toBe('Draft final');
+      expect(contentUpdates.map((update) => update.content)).not.toContain(
+        'Draft with stale tailDraftDraft final',
+      );
     });
 
     it('should switch to a new assistant before persisting the next turn tool', async () => {
