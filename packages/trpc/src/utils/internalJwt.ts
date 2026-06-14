@@ -112,6 +112,40 @@ export const signOperationJwt = async (userId: string): Promise<string> => {
 };
 
 /**
+ * Sign a connection token for a WORKSPACE-owned device. The device gateway reads
+ * the `workspace_id` claim and routes the socket to the `workspace:<id>`
+ * principal (so every workspace member can reach the device), instead of the
+ * signer's personal principal. Minted ONLY after the server has verified the
+ * requester is a workspace admin — the gateway trusts this signed claim.
+ */
+export const signWorkspaceDeviceToken = async (workspaceId: string): Promise<string> => {
+  const { key, kid } = await getSigningKey();
+
+  return new SignJWT({ purpose: 'workspace-device-connect', workspace_id: workspaceId })
+    .setProtectedHeader({ alg: 'RS256', kid })
+    .setSubject(workspaceId)
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(key);
+};
+
+/**
+ * Long-lived operation token for an agent run dispatched to a WORKSPACE device.
+ * Mirrors {@link signOperationJwt} but carries `workspace_id` so the device's
+ * gateway callbacks resolve to the workspace principal.
+ */
+export const signWorkspaceOperationJwt = async (workspaceId: string): Promise<string> => {
+  const { key, kid } = await getSigningKey();
+
+  return new SignJWT({ purpose: 'hetero-operation', workspace_id: workspaceId })
+    .setProtectedHeader({ alg: 'RS256', kid })
+    .setSubject(workspaceId)
+    .setIssuedAt()
+    .setExpirationTime('4h')
+    .sign(key);
+};
+
+/**
  * Validate internal JWT from lambda → async calls
  * Returns true if valid, false otherwise
  */

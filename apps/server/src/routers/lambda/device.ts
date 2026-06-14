@@ -2,9 +2,11 @@ import { REMOTE_HETEROGENEOUS_AGENT_CONFIGS } from '@lobechat/heterogeneous-agen
 import type { DeviceChannel, DeviceListItem, WorkingDirEntry } from '@lobechat/types';
 import { z } from 'zod';
 
+import { wsOwnerProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { DeviceModel } from '@/database/models/device';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { signWorkspaceDeviceToken } from '@/libs/trpc/utils/internalJwt';
 import { deviceGateway } from '@/server/services/deviceGateway';
 
 import { preserveWorkspaceCache } from './deviceWorkingDirs';
@@ -456,6 +458,18 @@ export const deviceRouter = router({
       }));
 
     return [...fromDb, ...ghosts];
+  }),
+
+  /**
+   * Mint a short-lived connect token for enrolling a WORKSPACE-owned device.
+   * Owner-only (`wsOwnerProcedure`) — the server verifies the caller is an admin
+   * of the workspace, then signs a token carrying the `workspace_id` claim that
+   * the device gateway trusts to route the device to the `workspace:<id>`
+   * principal. The CLI (`lh connect --workspace`) / settings page use this.
+   */
+  mintWorkspaceConnectToken: wsOwnerProcedure.mutation(async ({ ctx }) => {
+    const token = await signWorkspaceDeviceToken(ctx.workspaceId);
+    return { token, workspaceId: ctx.workspaceId };
   }),
 
   /**

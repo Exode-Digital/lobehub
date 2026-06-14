@@ -46,8 +46,8 @@ export class GatewayHttpClient {
     this.serviceToken = options.serviceToken;
   }
 
-  async queryDeviceStatus(userId: string): Promise<DeviceStatusResult> {
-    const res = await this.post('/api/device/status', { userId });
+  async queryDeviceStatus(userId: string, workspaceId?: string): Promise<DeviceStatusResult> {
+    const res = await this.post('/api/device/status', { userId, workspaceId });
     if (!res.ok) return { deviceCount: 0, online: false };
 
     const data = await res.json();
@@ -57,8 +57,8 @@ export class GatewayHttpClient {
     };
   }
 
-  async queryDeviceList(userId: string): Promise<GatewayDevice[]> {
-    const res = await this.post('/api/device/devices', { userId });
+  async queryDeviceList(userId: string, workspaceId?: string): Promise<GatewayDevice[]> {
+    const res = await this.post('/api/device/devices', { userId, workspaceId });
     if (!res.ok) return [];
 
     const data = await res.json();
@@ -66,7 +66,7 @@ export class GatewayHttpClient {
   }
 
   async executeToolCall(
-    params: { deviceId?: string; timeout?: number; userId: string },
+    params: { deviceId?: string; timeout?: number; userId: string; workspaceId?: string },
     toolCall: { apiName: string; arguments: string; identifier: string },
   ): Promise<DeviceToolCallResult> {
     return this.postToolCall(params, { ...toolCall, type: 'tool' });
@@ -89,13 +89,17 @@ export class GatewayHttpClient {
     params: GatewayMcpStdioParams;
     timeout?: number;
     userId: string;
+    workspaceId?: string;
   }): Promise<DeviceToolCallResult> {
-    const { deviceId, timeout, userId, ...toolCall } = mcpCall;
-    return this.postToolCall({ deviceId, timeout, userId }, { ...toolCall, type: 'mcp' });
+    const { deviceId, timeout, userId, workspaceId, ...toolCall } = mcpCall;
+    return this.postToolCall(
+      { deviceId, timeout, userId, workspaceId },
+      { ...toolCall, type: 'mcp' },
+    );
   }
 
   private async postToolCall(
-    params: { deviceId?: string; timeout?: number; userId: string },
+    params: { deviceId?: string; timeout?: number; userId: string; workspaceId?: string },
     toolCall: {
       apiName: string;
       arguments: string;
@@ -115,6 +119,7 @@ export class GatewayHttpClient {
         timeout: params.timeout,
         toolCall,
         userId: params.userId,
+        workspaceId: params.workspaceId,
       },
       { timeout: timeout + HTTP_CALL_TIMEOUT_PADDING_MS },
     );
@@ -151,7 +156,7 @@ export class GatewayHttpClient {
   }
 
   async executeMessageApi(
-    params: { deviceId?: string; timeout?: number; userId: string },
+    params: { deviceId?: string; timeout?: number; userId: string; workspaceId?: string },
     api: { apiName: string; payload: Record<string, unknown>; platform: string },
   ): Promise<DeviceMessageApiResult> {
     const res = await this.post('/api/device/message-api', {
@@ -159,6 +164,7 @@ export class GatewayHttpClient {
       deviceId: params.deviceId,
       timeout: params.timeout,
       userId: params.userId,
+      workspaceId: params.workspaceId,
     });
 
     if (!res.ok) {
@@ -193,6 +199,7 @@ export class GatewayHttpClient {
     timeout?: number;
     topicId: string;
     userId: string;
+    workspaceId?: string;
   }): Promise<{ success: boolean; error?: string }> {
     const res = await this.post('/api/device/agent/run', params);
     if (!res.ok) {
@@ -210,7 +217,7 @@ export class GatewayHttpClient {
    * the LLM-facing tool channel.
    */
   async invokeRpc<T = unknown>(
-    params: { deviceId?: string; timeout?: number; userId: string },
+    params: { deviceId?: string; timeout?: number; userId: string; workspaceId?: string },
     rpc: { method: string; params?: unknown },
   ): Promise<DeviceRpcResult<T>> {
     const timeout =
@@ -225,6 +232,7 @@ export class GatewayHttpClient {
         params: rpc.params,
         timeout: params.timeout,
         userId: params.userId,
+        workspaceId: params.workspaceId,
       },
       { timeout: timeout + HTTP_CALL_TIMEOUT_PADDING_MS },
     );
@@ -241,8 +249,9 @@ export class GatewayHttpClient {
   async getDeviceSystemInfo(
     userId: string,
     deviceId: string,
+    workspaceId?: string,
   ): Promise<{ success: boolean; systemInfo?: DeviceSystemInfo }> {
-    const res = await this.post('/api/device/system-info', { deviceId, userId });
+    const res = await this.post('/api/device/system-info', { deviceId, userId, workspaceId });
     if (!res.ok) {
       return { success: false };
     }
