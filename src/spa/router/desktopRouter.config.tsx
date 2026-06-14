@@ -831,6 +831,13 @@ export const desktopRoutes: RouteObject[] = [
                     ),
                     path: 'storage',
                   },
+                  {
+                    element: dynamicElement(
+                      () => import('@/routes/(main)/[workspaceSlug]/settings/devices'),
+                      'Desktop > Workspace > Settings > Devices',
+                    ),
+                    path: 'devices',
+                  },
                 ],
                 element: dynamicLayout(
                   () => import('@/routes/(main)/[workspaceSlug]/settings/_content-layout'),

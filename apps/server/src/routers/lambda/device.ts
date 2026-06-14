@@ -1,13 +1,16 @@
 import { REMOTE_HETEROGENEOUS_AGENT_CONFIGS } from '@lobechat/heterogeneous-agents';
-import type { DeviceChannel, DeviceListItem, WorkingDirEntry } from '@lobechat/types';
+import type { DeviceChannel, DeviceListItem, DeviceScope, WorkingDirEntry } from '@lobechat/types';
 import { z } from 'zod';
 
-import { wsOwnerProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
+import {
+  wsCompatProcedure,
+  wsOwnerProcedure,
+} from '@/business/server/trpc-middlewares/workspaceAuth';
 import { DeviceModel } from '@/database/models/device';
-import { authedProcedure, router } from '@/libs/trpc/lambda';
+import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { signWorkspaceDeviceToken } from '@/libs/trpc/utils/internalJwt';
-import { deviceGateway } from '@/server/services/deviceGateway';
+import { type DeviceAttachment, deviceGateway } from '@/server/services/deviceGateway';
 
 import { preserveWorkspaceCache } from './deviceWorkingDirs';
 
@@ -23,11 +26,19 @@ const remotePlatformEnum = z.enum(
 const CAPABILITY_TIMEOUT_MS = 5_000;
 const PROFILE_TIMEOUT_MS = 5_000;
 
-const deviceProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
+// Workspace-aware (compat): with an `X-Workspace-Id` header the device list also
+// surfaces the workspace's shared devices; without it, the personal path is
+// unchanged (`ctx.workspaceId === undefined`).
+const deviceProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
+  const wsId = ctx.workspaceId ?? undefined;
 
   return opts.next({
-    ctx: { deviceModel: new DeviceModel(ctx.serverDB, ctx.userId), userId: ctx.userId },
+    ctx: {
+      deviceModel: new DeviceModel(ctx.serverDB, ctx.userId, wsId),
+      userId: ctx.userId,
+      workspaceId: wsId,
+    },
   });
 });
 
@@ -390,74 +401,96 @@ export const deviceRouter = router({
    * a currently-reachable device during rollout.
    */
   listDevices: deviceProcedure.query(async ({ ctx }): Promise<DeviceListItem[]> => {
-    const [registered, onlineList] = await Promise.all([
-      ctx.deviceModel.query(),
+    const wsId = ctx.workspaceId;
+
+    // Personal devices resolve under the user principal; workspace devices under
+    // the `workspace:<id>` principal (a separate gateway pool). Fetch both.
+    const [personalRows, workspaceRows, personalOnline, workspaceOnline] = await Promise.all([
+      ctx.deviceModel.queryPersonal(),
+      wsId ? ctx.deviceModel.queryWorkspaceDevices() : Promise.resolve([]),
       deviceGateway.queryDeviceList(ctx.userId),
+      wsId ? deviceGateway.queryDeviceList(ctx.userId, wsId) : Promise.resolve([]),
     ]);
 
     // The gateway already groups by device, exposing live sessions as nested
-    // `channels`. Flatten them into the UI-facing channel shape; fall back to a
-    // single synthetic channel for a legacy gateway that omits the field.
-    const channelsByDevice = new Map<string, DeviceChannel[]>();
-    for (const conn of onlineList) {
-      const channels: DeviceChannel[] =
-        conn.channels && conn.channels.length > 0
-          ? conn.channels.map((c) => ({
-              channel: c.channel ?? null,
-              connectedAt: c.connectedAt,
+    // `channels`. Flatten one connection into the UI-facing channel shape; fall
+    // back to a single synthetic channel for a legacy gateway that omits the field.
+    const toChannels = (conn: DeviceAttachment): DeviceChannel[] =>
+      conn.channels && conn.channels.length > 0
+        ? conn.channels.map((c) => ({
+            channel: c.channel ?? null,
+            connectedAt: c.connectedAt,
+            hostname: conn.hostname ?? null,
+            platform: conn.platform ?? null,
+          }))
+        : [
+            {
+              channel: null,
+              connectedAt: conn.lastSeen,
               hostname: conn.hostname ?? null,
               platform: conn.platform ?? null,
-            }))
-          : [
-              {
-                channel: null,
-                connectedAt: conn.lastSeen,
-                hostname: conn.hostname ?? null,
-                platform: conn.platform ?? null,
-              },
-            ];
-      channelsByDevice.set(conn.deviceId, channels);
-    }
+            },
+          ];
 
-    const seen = new Set<string>();
+    // Merge a DB-registered set with its live gateway pool into the UI shape.
+    // `scope` tags the group; deviceIds never collide across pools (a personal id
+    // is derived from userId, a workspace id from workspaceId).
+    const buildItems = (
+      rows: Awaited<ReturnType<typeof ctx.deviceModel.queryPersonal>>,
+      onlineList: DeviceAttachment[],
+      scope: DeviceScope,
+    ): DeviceListItem[] => {
+      const channelsByDevice = new Map<string, DeviceChannel[]>();
+      for (const conn of onlineList) channelsByDevice.set(conn.deviceId, toChannels(conn));
 
-    const fromDb = registered.map((d) => {
-      seen.add(d.deviceId);
-      const channels = channelsByDevice.get(d.deviceId) ?? [];
-      const live = channels[0];
-      return {
-        channels,
-        defaultCwd: d.defaultCwd,
-        deviceId: d.deviceId,
-        friendlyName: d.friendlyName,
-        hostname: d.hostname ?? live?.hostname ?? null,
-        identitySource: d.identitySource,
-        lastSeen: d.lastSeenAt.toISOString(),
-        online: channels.length > 0,
-        platform: d.platform ?? live?.platform ?? null,
-        registered: true,
-        workingDirs: d.workingDirs ?? [],
-      };
-    });
+      const seen = new Set<string>();
+      const fromDb = rows.map((d): DeviceListItem => {
+        seen.add(d.deviceId);
+        const channels = channelsByDevice.get(d.deviceId) ?? [];
+        const live = channels[0];
+        return {
+          channels,
+          defaultCwd: d.defaultCwd,
+          deviceId: d.deviceId,
+          friendlyName: d.friendlyName,
+          hostname: d.hostname ?? live?.hostname ?? null,
+          identitySource: d.identitySource,
+          lastSeen: d.lastSeenAt.toISOString(),
+          online: channels.length > 0,
+          platform: d.platform ?? live?.platform ?? null,
+          registered: true,
+          scope,
+          workingDirs: d.workingDirs ?? [],
+        };
+      });
 
-    // Online but not yet persisted — transient until the client auto-registers.
-    const ghosts = [...channelsByDevice.entries()]
-      .filter(([deviceId]) => !seen.has(deviceId))
-      .map(([deviceId, channels]) => ({
-        channels,
-        defaultCwd: null,
-        deviceId,
-        friendlyName: null,
-        hostname: channels[0]?.hostname ?? null,
-        identitySource: null,
-        lastSeen: channels[0]?.connectedAt ?? new Date().toISOString(),
-        online: true,
-        platform: channels[0]?.platform ?? null,
-        registered: false,
-        workingDirs: [] as WorkingDirEntry[],
-      }));
+      // Online but not yet persisted — transient until the client auto-registers.
+      const ghosts = [...channelsByDevice.entries()]
+        .filter(([deviceId]) => !seen.has(deviceId))
+        .map(
+          ([deviceId, channels]): DeviceListItem => ({
+            channels,
+            defaultCwd: null,
+            deviceId,
+            friendlyName: null,
+            hostname: channels[0]?.hostname ?? null,
+            identitySource: null,
+            lastSeen: channels[0]?.connectedAt ?? new Date().toISOString(),
+            online: true,
+            platform: channels[0]?.platform ?? null,
+            registered: false,
+            scope,
+            workingDirs: [] as WorkingDirEntry[],
+          }),
+        );
 
-    return [...fromDb, ...ghosts];
+      return [...fromDb, ...ghosts];
+    };
+
+    return [
+      ...buildItems(personalRows, personalOnline, 'personal'),
+      ...buildItems(workspaceRows, workspaceOnline, 'workspace'),
+    ];
   }),
 
   /**
@@ -471,6 +504,26 @@ export const deviceRouter = router({
     const token = await signWorkspaceDeviceToken(ctx.workspaceId);
     return { token, workspaceId: ctx.workspaceId };
   }),
+
+  /**
+   * Enroll the calling machine as a device of the current workspace. Owner-only;
+   * stamps `workspace_id` so the row belongs to the workspace. Used by
+   * `lh connect --workspace` after minting the connect token.
+   */
+  registerWorkspaceDevice: wsOwnerProcedure
+    .use(serverDatabase)
+    .input(
+      z.object({
+        deviceId: z.string().min(1).max(64),
+        hostname: z.string().nullable().optional(),
+        identitySource: z.enum(['machine-id', 'fallback']),
+        platform: z.string().max(20).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const model = new DeviceModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
+      return model.registerWorkspaceDevice({ ...input, workspaceId: ctx.workspaceId });
+    }),
 
   /**
    * Auto-register the calling device (desktop after OIDC login / CLI on first

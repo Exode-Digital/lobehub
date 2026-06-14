@@ -163,9 +163,13 @@ const ConnectOption = memo<ConnectOptionProps>(({ icon, title, desc, badge, onCl
 
 const DeviceList = memo(() => {
   const { t } = useTranslation('setting');
-  const { data: devices, isLoading } = lambdaQuery.device.listDevices.useQuery(undefined, {
+  const { data: rawDevices, isLoading } = lambdaQuery.device.listDevices.useQuery(undefined, {
     staleTime: 30_000,
   });
+  // This is the PERSONAL device settings page. `listDevices` is workspace-aware
+  // and also returns the active workspace's shared devices — those are managed
+  // under workspace settings, so keep this page to personal devices only.
+  const devices = rawDevices?.filter((d) => d.scope === 'personal');
 
   // Identify which row is the machine the user is on right now (desktop only —
   // the web client isn't itself a registered device), so it can be badged and

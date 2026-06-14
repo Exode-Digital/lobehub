@@ -2173,6 +2173,14 @@ When I am ___, I need ___
   'workspace.onboarding.step3.installed': 'Added {{count}} agent(s) to your workspace',
   'workspace.onboarding.step3.empty': 'No recommendations available right now.',
   'workspaceSetting.breadcrumb.settings': 'Settings',
+  'workspaceSetting.devices.desc':
+    'Shared machines enrolled into this workspace. Members can run agents on them.',
+  'workspaceSetting.devices.empty': 'No workspace devices yet.',
+  'workspaceSetting.devices.enrollDesc':
+    'Run this on the machine you want to share (workspace owner only):',
+  'workspaceSetting.devices.enrollTitle': 'Add a device',
+  'workspaceSetting.devices.offline': 'Offline',
+  'workspaceSetting.devices.online': 'Online',
   'workspaceSetting.group.admin': 'Admin',
   'workspaceSetting.group.agent': 'Agent',
   'workspaceSetting.group.general': 'General',
