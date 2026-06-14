@@ -12,7 +12,7 @@
   "dependencies": {
     "@lobechat/database": "workspace:*",
     "@lobechat/utils": "workspace:*",
-    "@t3-oss/env-nextjs": "^0.13.10",
+    "@t3-oss/env-nextjs": "^0.13.11",
     "debug": "^4.4.3",
     "lucide-react": "*",
     "zod": "^3.25.76"
