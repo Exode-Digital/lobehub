@@ -42,11 +42,15 @@ const rightActions: ActionKeys[] = [];
  */
 const HeterogeneousChatInput = memo(() => {
   const { t } = useTranslation('chat');
-  const { isConfigured, goToConfig } = useHeteroAgentCloudConfig();
+  // Scope every hetero check to the conversation's agent. Passing `agentId`
+  // into the cloud-credential and device guards keeps them validating the same
+  // agent that `agencyConfig`/`isDeviceExecution` are computed from, instead of
+  // the global (hijack-prone) active agent.
+  const agentId = useConversationStore(contextSelectors.agentId);
+  const { isConfigured, goToConfig } = useHeteroAgentCloudConfig(agentId);
   const params = useParams<{ aid: string }>();
   const navigate = useNavigate();
 
-  const agentId = useConversationStore(contextSelectors.agentId);
   const agencyConfig = useAgentStore(
     (s) => agentSelectors.getAgentConfigById(agentId)(s)?.agencyConfig,
   );
@@ -65,7 +69,7 @@ const HeterogeneousChatInput = memo(() => {
   const isDeviceExecution =
     isRemoteAgent || (executionTarget === 'device' && !!agencyConfig?.boundDeviceId);
 
-  const { status, refresh } = useRemoteAgentDeviceGuard({ enabled: isDeviceExecution });
+  const { status, refresh } = useRemoteAgentDeviceGuard({ agentId, enabled: isDeviceExecution });
 
   const goToAgentProfile = () => {
     if (params.aid) navigate(urlJoin('/agent', params.aid, 'profile'));
