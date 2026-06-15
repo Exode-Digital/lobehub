@@ -14,6 +14,7 @@ import { useHeteroAgentCloudConfig } from '@/business/client/hooks/useHeteroAgen
 import { isDesktop } from '@/const/version';
 import { type ActionKeys } from '@/features/ChatInput';
 import { ChatInput } from '@/features/Conversation';
+import { contextSelectors, useConversationStore } from '@/features/Conversation/store';
 import WideScreenContainer from '@/features/WideScreenContainer';
 import { resolveExecutionTarget } from '@/helpers/executionTarget';
 import { useRemoteAgentDeviceGuard } from '@/hooks/useRemoteAgentDeviceGuard';
@@ -45,7 +46,10 @@ const HeterogeneousChatInput = memo(() => {
   const params = useParams<{ aid: string }>();
   const navigate = useNavigate();
 
-  const agencyConfig = useAgentStore((s) => agentSelectors.currentAgentConfig(s)?.agencyConfig);
+  const agentId = useConversationStore(contextSelectors.agentId);
+  const agencyConfig = useAgentStore(
+    (s) => agentSelectors.getAgentConfigById(agentId)(s)?.agencyConfig,
+  );
   const providerType = agencyConfig?.heterogeneousProvider?.type;
   const executionTarget = resolveExecutionTarget(agencyConfig, {
     isDesktop,
