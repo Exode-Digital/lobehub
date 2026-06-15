@@ -8,6 +8,11 @@ import { threadSelectors } from '@/store/chat/selectors';
 
 import ThreadItem from './ThreadItem';
 
+// Cap the nested thread list so a topic with many threads doesn't push the rest
+// of the topic list off-screen; the overflow scrolls within the list itself.
+// ~9 rows (NavItem 36px + 1px gap).
+const MAX_HEIGHT = 9 * 37;
+
 const ThreadList = memo(() => {
   const [id] = useChatStore((s) => [s.activeTopicId]);
   const threads = useChatStore(threadSelectors.getThreadsByTopic(id));
@@ -17,7 +22,7 @@ const ThreadList = memo(() => {
   if (!threads || threads.length === 0) return;
 
   return (
-    <Flexbox gap={1} paddingBlock={1}>
+    <Flexbox gap={1} paddingBlock={1} style={{ maxHeight: MAX_HEIGHT, overflowY: 'auto' }}>
       {threads?.map((item, index) => (
         <ThreadItem
           id={item.id}
