@@ -56,6 +56,7 @@ const ThreadItem = memo<ThreadItemProps>(({ title, id, isSubagent }) => {
         actions={<Actions dropdownMenu={dropdownMenu} />}
         active={active && !isInAgentSubRoute}
         contextMenuItems={dropdownMenu}
+        data-thread-id={id}
         disabled={editing}
         icon={<Icon color={cssVar.colorTextDescription} icon={CornerDownRight} size={'small'} />}
         style={isSubagent ? { paddingInlineStart: SUBAGENT_PADDING_INLINE_START } : undefined}

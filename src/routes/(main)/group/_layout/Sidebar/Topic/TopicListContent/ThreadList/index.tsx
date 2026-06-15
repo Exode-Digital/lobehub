@@ -3,6 +3,7 @@ import { Flexbox } from '@lobehub/ui';
 import { memo } from 'react';
 
 import { useFetchThreads } from '@/hooks/useFetchThreads';
+import { useScrollActiveThreadIntoView } from '@/hooks/useScrollActiveThreadIntoView';
 import { useChatStore } from '@/store/chat';
 import { threadSelectors } from '@/store/chat/selectors';
 
@@ -14,15 +15,22 @@ import ThreadItem from './ThreadItem';
 const MAX_HEIGHT = 9 * 37;
 
 const ThreadList = memo(() => {
-  const [id] = useChatStore((s) => [s.activeTopicId]);
+  const [id, activeThreadId] = useChatStore((s) => [s.activeTopicId, s.activeThreadId]);
   const threads = useChatStore(threadSelectors.getThreadsByTopic(id));
 
   useFetchThreads(id);
 
+  const containerRef = useScrollActiveThreadIntoView(activeThreadId, threads?.length);
+
   if (!threads || threads.length === 0) return;
 
   return (
-    <Flexbox gap={1} paddingBlock={1} style={{ maxHeight: MAX_HEIGHT, overflowY: 'auto' }}>
+    <Flexbox
+      gap={1}
+      paddingBlock={1}
+      ref={containerRef}
+      style={{ maxHeight: MAX_HEIGHT, overflowY: 'auto' }}
+    >
       {threads?.map((item, index) => (
         <ThreadItem
           id={item.id}
