@@ -1,5 +1,5 @@
 import { ThreadType } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
+import { ScrollShadow } from '@lobehub/ui';
 import { memo } from 'react';
 
 import { useFetchThreads } from '@/hooks/useFetchThreads';
@@ -25,11 +25,12 @@ const ThreadList = memo(({ topicId }: { topicId: string }) => {
   if (!threads || threads.length === 0) return;
 
   return (
-    <Flexbox
+    <ScrollShadow
       gap={1}
       paddingBlock={1}
       ref={containerRef}
-      style={{ maxHeight: MAX_HEIGHT, overflowY: 'auto' }}
+      size={12}
+      style={{ maxHeight: MAX_HEIGHT }}
     >
       {threads?.map((item, index) => (
         <ThreadItem
@@ -40,7 +41,7 @@ const ThreadList = memo(({ topicId }: { topicId: string }) => {
           title={item.title}
         />
       ))}
-    </Flexbox>
+    </ScrollShadow>
   );
 });
 
